@@ -1,0 +1,29 @@
+import {DropdownMenu,DropdownMenuContent,DropdownMenuItem,DropdownMenuTrigger,} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import {Copy,Reply,Trash2,MoreVertical} from "lucide-react";
+interface Props{
+    isMe:boolean;
+    onDelete:()=>void;
+}
+export default function MessageDropdown({isMe,onDelete}:Props){
+    return(
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className={`h-7 w-7 group transition`}>
+                    <MoreVertical size={16}/>
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+                <DropdownMenuItem>
+                    <Reply className="mr-2 h-4 w-4"/>Reply
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                    <Copy className="mr-2 h-4 w-4"/>Copy
+                </DropdownMenuItem>
+                <DropdownMenuItem className="text-red-500" onClick={onDelete}>
+                    <Trash2 className="mr-2 h-4 w-4"/>Delete
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+    )
+}
