@@ -1,7 +1,7 @@
 import axios from "axios";
 import { toast } from "sonner";
 
-const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_PRODUCTION_URL;
+const API_URL = import.meta.env.VITE_API_URL;
 
 export const api = axios.create({
     baseURL:`${API_URL}/api`
