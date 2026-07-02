@@ -1,6 +1,24 @@
-node_modules
-.env
-dist
-build
-coverage
-.vscode
+# dependencies
+**/node_modules
+
+# environment files
+**/.env
+**/.env.*
+
+# build folders
+**/dist
+**/build
+
+# logs
+*.log
+npm-debug.log*
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# coverage
+**/coverage
