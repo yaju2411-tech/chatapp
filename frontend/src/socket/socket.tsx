@@ -1,3 +1,9 @@
 import { io } from "socket.io-client";
 
-export const socket = io("http://localhost:3000");
+const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_PRODUCTION_URL;
+
+export const socket = io(API_URL,{
+    transports:["websocket","polling"]
+});
+
+//http://localhost:3000

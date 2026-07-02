@@ -1,6 +1,8 @@
 import { api } from "./api"
 
 //auth profile creation with verify
+const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_PRODUCTION_URL;
+
 export const sendResetOtp = async(email:string) => {
     const response = await api.post("/auth/forgot-password",{email});
     return response.data;
@@ -31,7 +33,7 @@ export const signupUser = async(name:string,email:string,password:string) => {
 }
 
 export const googleLogin = () => {
-    window.location.href = "http://localhost:3000/api/auth/google";
+    window.location.href = `${API_URL}/api/auth/google`;
 }
 
 //auth session url

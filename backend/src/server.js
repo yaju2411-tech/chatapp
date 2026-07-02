@@ -27,10 +27,19 @@ const httpServer = createServer(app);
 //socket io setup
 const io = initSocket(httpServer);
 setupSocket();
+const PORT = process.env.PORT;
+const allowedOrigins = [
+    process.env.CLIENT_URL,
+    process.env.CLIENT_URL_PROD,
+].filter(Boolean);
+
 
 //default middleware
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: allowedOrigins,
+    credentials:true,
+}));
 //middleware for Oauth
 app.use(cookieParser());
 app.use(
@@ -63,6 +72,6 @@ app.use("/api/notifications",notificationRoutes);
 //gif routes
 app.use("/api/gif",gifRoutes);
 
-httpServer.listen(3000,"0.0.0.0",()=>{
-    console.log("Server runs on 3000");
+httpServer.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on ${PORT}`);
 });

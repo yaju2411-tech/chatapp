@@ -4,14 +4,13 @@ import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { User } from "../models/User.js";
 
-console.log(process.env.GOOGLE_CLIENT_ID);
-console.log(process.env.GOOGLE_CLIENT_SECRET);
+const API_URL = process.env.NODE_ENV === "production" ? process.env.BACKEND_URL_PROD : process.env.BACKEND_URL;
 
 passport.use(
     new GoogleStrategy({
         clientID:process.env.GOOGLE_CLIENT_ID,
         clientSecret:process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL:"http://localhost:3000/api/auth/google/callback",
+        callbackURL:`${API_URL}/api/auth/google/callback`    
     },async(accessToken,refreshToken,profile,done)=>{
         try{
             let user = await User.findOne({

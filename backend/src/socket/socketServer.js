@@ -1,10 +1,16 @@
 import { Server } from "socket.io";
 let io;
 
+const allowedOrigins = [
+    process.env.CLIENT_URL,
+    process.env.CLIENT_URL_PROD,
+].filter(Boolean);
+
 export const initSocket = (httpServer) => {
     io = new Server(httpServer,{
         cors:{
-            origin:"http://localhost:5173",
+            origin:allowedOrigins,
+            credentials:true,
             methods:["GET","POST"]
         }
     });

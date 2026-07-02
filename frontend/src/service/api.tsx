@@ -1,8 +1,10 @@
 import axios from "axios";
 import { toast } from "sonner";
 
+const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_PRODUCTION_URL;
+
 export const api = axios.create({
-  baseURL: "http://localhost:3000/api",
+    baseURL:`${API_URL}/api`
 });
 // Request interceptor
 api.interceptors.request.use(
