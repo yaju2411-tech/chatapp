@@ -17,7 +17,7 @@ interface Props{
 export default function MessageArea({conversationId,selectedMessages,selectionMode,setSelectionMode,toggleMessage}:Props){
     const queryClient = useQueryClient();
     const {data,isLoading} = useGetMessages(conversationId);
-    const [messages,setMessages] = useState([]);
+    const [messages,setMessages] = useState<any[]>([]);
     const [isTyping, setIsTyping] = useState(false);
     const markSeenMutation = useMarkMessageSeen();
     

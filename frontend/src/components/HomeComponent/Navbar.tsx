@@ -1,4 +1,4 @@
-import {ArrowLeft, BadgeCheck,Bell,ChevronsUpDown,CreditCard,LogOut,Sparkles,} from "lucide-react"
+import {BadgeCheck,Bell,ChevronsUpDown,CreditCard,LogOut,Sparkles,} from "lucide-react"
 import {Avatar,AvatarFallback,AvatarImage,} from "@/components/ui/avatar"
 import {DropdownMenu,DropdownMenuContent,DropdownMenuGroup,DropdownMenuItem,DropdownMenuLabel,DropdownMenuSeparator,DropdownMenuTrigger,} from "@/components/ui/dropdown-menu"
 import {SidebarMenu,SidebarMenuButton,SidebarMenuItem,useSidebar,} from "@/components/ui/sidebar"
@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { socket } from "@/socket/socket";
 
 export function NavUser(){
-    const {data,isLoading} = useProfile();
+    const {data} = useProfile();
     const user = data?.user;
     const [name,setName] = useState("");
     const [previewAvatar,setPreviewAvatar] = useState("");

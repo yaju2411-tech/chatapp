@@ -11,7 +11,7 @@ interface Props {
     onVoiceCall:()=>void
 }
 
-export const SendingOption = ({onFileSelect,receiver,currentUser,onVoiceCall}:Props) => {
+export const SendingOption = ({onFileSelect,onVoiceCall}:Props) => {
     const imageRef = useRef<HTMLInputElement>(null);
     const videoRef = useRef<HTMLInputElement>(null);
     const audioRef = useRef<HTMLInputElement>(null);

@@ -8,6 +8,8 @@ import { useSearchGifs, useTrendingGifs } from "../../hooks/gifHooks";
 import { useDebounce } from "use-debounce"; 
 import { SendingOption } from "./SendingOption";
 import { useUploadMedia } from "@/hooks/chatHook/useMessage";
+import { Theme } from "emoji-picker-react";
+
 
 interface Props{
     conversationId:string;
@@ -66,7 +68,7 @@ export default function MessageInput({conversationId,currentUser,receiver,onVoic
                 className="flex-1 resize-none bg-transparent outline-none text-white placeholder:text-zinc-400 min-h-[24px] max-h-40 overflow-y-auto"/>
             {picker === "emoji" && (
                 <div className="absolute bottom-16 left-0 z-50">
-                    <EmojiPicker theme="dark" onEmojiClick={(emoji)=> setText(prev=>prev+emoji.emoji)}/>
+                    <EmojiPicker theme={Theme.DARK} onEmojiClick={(emoji)=> setText(prev=>prev+emoji.emoji)}/>
                 </div>
             )}
             {picker === "gif" && (

@@ -8,7 +8,7 @@ interface Props {
     onClearChat: () => void;
 }
 
-export default function FriendDropdown({ friend, onDelete, onClearChat}: Props) {
+export default function FriendDropdown({onDelete, onClearChat}: Props) {
     return (<>
         <DropdownMenu>
             <DropdownMenuTrigger asChild> 

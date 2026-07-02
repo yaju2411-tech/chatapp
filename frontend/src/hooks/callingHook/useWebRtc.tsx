@@ -47,7 +47,7 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
                 setCallAccepted(false);
                 setIncomingCall(null);
             });
-            socket.on("webrtc-offer",async({offer})=>{
+            socket.on("webrtc-offer",async({offer}:{offer:RTCSessionDescriptionInit})=>{
                 console.log("Offer Received");
               //Now the receiver also sends ICE candidates back.
               createPeerConnection((candidate) => {
@@ -63,11 +63,11 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
                 targetUserId:incomingCall?.caller._id, answer
               });
             });
-            socket.on("webrtc-answer",async({answer})=>{
+            socket.on("webrtc-answer",async({answer}:{answer:RTCSessionDescriptionInit})=>{
                 console.log("answer receive");
               await setRemoteAnswer(answer);
             })
-            socket.on("ice-candidate", async ({ candidate }) => {
+            socket.on("ice-candidate", async ({candidate}:{candidate:RTCIceCandidateInit}) => {
               await addIceCandidate(candidate);
             });
             return () => {

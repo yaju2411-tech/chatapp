@@ -5,7 +5,7 @@ interface Props{
     isMe:boolean;
     onDelete:()=>void;
 }
-export default function MessageDropdown({isMe,onDelete}:Props){
+export default function MessageDropdown({onDelete}:Props){
     return(
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
