@@ -5,7 +5,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { User } from "../models/User.js";
 
 const API_URL = process.env.NODE_ENV === "production" ? process.env.BACKEND_URL_PROD : process.env.BACKEND_URL;
-
+console.log("Google callback URL:", `${API_URL}/api/auth/google/callback`);
 passport.use(
     new GoogleStrategy({
         clientID:process.env.GOOGLE_CLIENT_ID,

@@ -4,13 +4,13 @@ dotenv.config();
 import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
-import { connectDB } from "./config/db.js";
+import { connectDB } from "../src/config/db.js";
 import session from "express-session";
 import passport from "../src/config/passport.js";
 import cookieParser from "cookie-parser";
 import "../src/events/friendEvents.js";
-import { initSocket } from "./socket/socketServer.js";
-import { setupSocket } from "./socket/socket.js";
+import { initSocket } from "../src/socket/socketServer.js";
+import { setupSocket } from "../src/socket/socket.js";
 
 import friendRoutes from "./routes/friendRoutes.js";
 import authRoutes from "../src/routes/authRoutes.js";
@@ -21,7 +21,6 @@ import messageRoutes from "../src/routes/messageRoutes.js";
 import notificationRoutes from "../src/routes/notificationRoutes.js";
 import gifRoutes from "../src/routes/gifRoutes.js"
 
-connectDB();
 const app = express();
 const httpServer = createServer(app);
 //socket io setup
@@ -32,7 +31,6 @@ const allowedOrigins = [
     process.env.CLIENT_URL,
     process.env.CLIENT_URL_PROD,
 ].filter(Boolean);
-
 
 //default middleware
 app.use(express.json());
@@ -72,6 +70,15 @@ app.use("/api/notifications",notificationRoutes);
 //gif routes
 app.use("/api/gif",gifRoutes);
 
-httpServer.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on ${PORT}`);
-});
+const startServer = async () => {
+    try {
+        await connectDB();
+        httpServer.listen(PORT, "0.0.0.0", () => {
+            console.log(`Server running on ${PORT}`);
+        });
+    } catch (err) {
+        console.error(err);
+        process.exit(1);
+    }
+};
+startServer();

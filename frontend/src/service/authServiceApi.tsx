@@ -7,7 +7,7 @@ export const sendResetOtp = async(email:string) => {
     const response = await api.post("/auth/forgot-password",{email});
     return response.data;
 }
-location.hostname === "localhost"
+
 export const verifyResetOtp = async(email:string,otp:string) => {
     const response = await api.post("/auth/verify-reset-otp",{email,otp});
     return response.data;

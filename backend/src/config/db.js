@@ -1,11 +1,16 @@
 import mongoose from "mongoose";
 
-export const connectDB = async() => {
-    try{
-        await mongoose.connect("mongodb://127.0.0.1:27017/authDB");
-        console.log("MongoDb connected");
+export const connectDB = async () => {
+    try {
+        console.log("Connecting...");
+        console.log(process.env.MONGO_URI);
+
+        await mongoose.connect(process.env.MONGO_URI);
+
+        console.log("MongoDB Connected Successfully");
+    } catch (err) {
+        console.error("MongoDB Connection Error:");
+        console.error(err);
+        process.exit(1);
     }
-    catch(err){
-        console.log(err.message);
-    }
-}
+};
