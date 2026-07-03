@@ -4,7 +4,7 @@ import { SignupForm } from './components/HomeComponent/SignupForm'
 import HomePage from './page/HomePage'
 import { Routes, Route } from "react-router-dom";
 import { ProtectedRoute } from '../src/components/HomeComponent/ProtectedRoute';
-import { AuthSuccess } from './page/AuthAccess';
+import { AuthSuccess } from '../src/page/AuthAccess';
 import { VerifyByOtp } from './page/VerifyByOtp';
 import { ForgotPassword } from './page/ForgotPassword';
 import AdminDashboardPage from './page/AdminDashboard';
