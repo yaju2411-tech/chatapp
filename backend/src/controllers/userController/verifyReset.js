@@ -1,5 +1,4 @@
 import { User } from "../../models/User.js";
-import { transporter } from "../../config/nodemailer.js";
 
 export const verifyResetOtp = async(req,res)=>{
     try{

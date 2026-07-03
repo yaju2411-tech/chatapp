@@ -1,5 +1,4 @@
 import { User } from "../../models/User.js";
-import { transporter } from "../../config/nodemailer.js";
 import bcrypt from "bcryptjs";
 
 export const changePassword = async(req,res)=>{

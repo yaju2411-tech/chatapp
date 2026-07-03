@@ -1,7 +1,8 @@
 import bcrypt from "bcryptjs";
 import { User } from "../../models/User.js";
 import jwt from "jsonwebtoken";
-import { transporter } from "../../config/nodemailer.js";
+import { resend } from "../../config/resend.js";
+
 
 export const signup = async(req,res) => {
     try{
@@ -28,14 +29,14 @@ export const signup = async(req,res) => {
             name,email,password:hashPassword,
             otp,otpExpire:Date.now()+5*60*1000,
         });
-        await transporter.sendMail({
-        from:process.env.EMAIL_USER,
-        to:email,
-        subject:"Email Verification OTP",
-        html:`
-            <h2>Your OTP is:</h2>
-            <h1>${otp}</h1>
-            <p>Valid for 5 minutes.</p>`
+        await resend.emails.send({
+            from: "Chat App <onboarding@resend.dev>",
+            to: email,
+            subject:"Email Verification OTP",
+            html:`
+                <h2>Your OTP is:</h2>
+                <h1>${otp}</h1>
+                <p>Valid for 5 minutes.</p>`
         });
         res.status(201).json({
             success:true,

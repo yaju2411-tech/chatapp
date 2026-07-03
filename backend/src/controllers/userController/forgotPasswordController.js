@@ -1,5 +1,5 @@
 import { User } from "../../models/User.js";
-import { transporter } from "../../config/nodemailer.js";
+import { resend } from "../../config/resend.js";
 
 export const forgotPasswordController = async(req,res) => {
     try{
@@ -16,11 +16,12 @@ export const forgotPasswordController = async(req,res) => {
         user.otpExpire = Date.now() + 5*60*1000;
         
         await user.save();
-        await transporter.sendMail({
-            from:process.env.EMAIL_USER,
-            to:email,
-            subject:"Password Reset OTP",
-            html:`<h1>${otp}</h1>`
+
+        await resend.emails.send({
+            from: "Chat App <onboarding@resend.dev>",
+            to: email,
+            subject: "Password Reset OTP",
+            html: `<h1>${otp}</h1>`,
         });
         res.status(200).json({
             success:true,
