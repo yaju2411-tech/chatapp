@@ -16,7 +16,7 @@ export const ForgotPassword = () => {
     const [password,setPassword] = useState("");
     const [emailVerified,setEmailVerified] = useState(false);
     const [otpVerified,setOtpVerified] = useState(false);
-    const {sendOtpMutation,verifyOtpMutation,resendOtpMutation,changePasswordMutation}= useForgotPassword();
+    const {sendOtpMutation,verifyOtpMutation,resendOtpMutation,changePasswordMutation} = useForgotPassword();
     const handleSendOtp = async () => {
         sendOtpMutation.mutate(email,{
             onSuccess:()=>{
@@ -82,7 +82,7 @@ export const ForgotPassword = () => {
                 <div className="flex items-center justify-between">
                     <InputOTP
                         maxLength={6} className="mt-6"
-                        value={value} disabled={!emailVerified}
+                        value={value} 
                         onChange={(value) => setValue(value)}
                     >
                         <InputOTPGroup>
@@ -99,7 +99,7 @@ export const ForgotPassword = () => {
                     </Button>
                     <Button
                         onClick={handleVerifyOtp}
-                        disabled={!emailVerified}>
+                        >
                         Verify OTP
                     </Button>
                 </div>
@@ -111,7 +111,7 @@ export const ForgotPassword = () => {
                     <Input id="password" type="password" onChange={(e)=>{setPassword(e.target.value)}} value={password} disabled={!otpVerified} required />
                   </Field>
                   <Field>
-                    <Button disabled={!otpVerified} onClick={handleChangePassword}>Change Password</Button>
+                    <Button onClick={handleChangePassword}>Change Password</Button>
                   </Field>
                 </FieldGroup>
             </CardContent>

@@ -1,7 +1,6 @@
 import { User } from "../../models/User.js";
 import { transporter } from "../../config/nodemailer.js";
 
-
 export const forgotPasswordController = async(req,res) => {
     try{
         const {email} = req.body;
@@ -12,7 +11,7 @@ export const forgotPasswordController = async(req,res) => {
                 message:"User not found"
             });
         }
-        const otp = Math.floor(100000 + Math.random()*90000).toString();
+        const otp = Math.floor(100000 + Math.random()*900000).toString();
         user.otp = otp;
         user.otpExpire = Date.now() + 5*60*1000;
         
