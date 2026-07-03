@@ -15,6 +15,7 @@ import { roleMiddleware } from "../middlware/adminMiddlware.js";
 import { searchUser } from "../controllers/userController/searchUserController.js";
 
 const router = express.Router();
+const API_URL = process.env.NODE_ENV === "production" ? process.env.CLIENT_URL_PROD : process.env.CLIENT_URL;
 
 //auth routers
 router.post("/signup", signup);
@@ -42,9 +43,8 @@ router.get("/google/callback",
             expiresIn: "1d"
         }
     );
-    res.redirect(`http://localhost:5173/auth-success?token=${token}`);
-}
-);
+    res.redirect(`${API_URL}/auth-success?token=${token}`);
+});
 
 //middlware for verify jwt token
 router.get("/me",authMiddlware,(req,res)=>{
