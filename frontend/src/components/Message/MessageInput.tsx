@@ -15,10 +15,10 @@ interface Props{
     conversationId:string;
     currentUser:any;
     receiver:any;
-    onVoiceCall:()=>void
+    onCall:(type:"audio"|"video")=>void
 }
 
-export default function MessageInput({conversationId,currentUser,receiver,onVoiceCall}:Props){
+export default function MessageInput({conversationId,currentUser,receiver,onCall}:Props){
     const [text,setText]=useState("");
     const sendMessageMutation = useSendMessage();
     const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -52,7 +52,7 @@ export default function MessageInput({conversationId,currentUser,receiver,onVoic
 
     return(
         <div className="relative flex items-end rounded-2xl bg-zinc-900/95 border border-zinc-700 px-3 py-2 shadow-lg backdrop-blur-md text-white">
-            <SendingOption onFileSelect={handleFileUpload} receiver={receiver} currentUser={currentUser} onVoiceCall={onVoiceCall}/>
+            <SendingOption onFileSelect={handleFileUpload} receiver={receiver} currentUser={currentUser} onCall={onCall}/>
             <Button variant="ghost" size="icon"
                 onClick={() =>setPicker(prev => prev === "emoji" ? null : "emoji")}>
                 <Smile />

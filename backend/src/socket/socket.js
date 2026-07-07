@@ -40,12 +40,12 @@ export const setupSocket = () => {
         socket.on("delete-message",(message)=>{
             socket.to(message.conversation).emit("message-deleted",message);
         });
-        // ==================== Voice Call ====================
+        // ==================== Call ====================
         // Caller -> Receiver
-        socket.on("call-user", ({ receiverId, caller }) => {
+        socket.on("call-user", ({ receiverId, caller,callType }) => {
             const receiverSocket = onlineUsers.get(receiverId);
             if (receiverSocket) {
-                getIo().to(receiverSocket).emit("incoming-call", {caller,});
+                getIo().to(receiverSocket).emit("incoming-call", {caller,callType});
             }
         });
         // Receiver accepted
@@ -72,9 +72,12 @@ export const setupSocket = () => {
         // ==================== WebRTC Signaling ====================
         // Caller -> Receiver
         socket.on("webrtc-offer", ({ targetUserId, offer }) => {
+            console.log("Offer sender socket:", socket.id);
             const targetSocket = onlineUsers.get(targetUserId);
+            console.log("Target user:", targetUserId);
+            console.log("Target socket:", targetSocket);
             if (targetSocket) {
-                io.to(targetSocket).emit("webrtc-offer", {offer,});
+                io.to(targetSocket).emit("webrtc-offer", { offer });
             }
         });
         // Receiver -> caller

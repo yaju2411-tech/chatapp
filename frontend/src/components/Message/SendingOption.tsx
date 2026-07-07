@@ -1,4 +1,4 @@
-import { CameraIcon, FileVideoCameraIcon, Music, Notebook, PhoneCall, PhoneCallIcon, Plus, Video, WindIcon } from "lucide-react";
+import { CameraIcon, Music, Notebook, PhoneCall, PhoneCallIcon, Plus, Video, WindIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import { useRef, useState } from "react";
@@ -8,21 +8,19 @@ interface Props {
     onFileSelect:(file:File)=>void;
     currentUser:any;
     receiver:any;
-    onVoiceCall:()=>void
+    onCall:(type:"audio"|"video")=>void;
 }
 
-export const SendingOption = ({onFileSelect,onVoiceCall}:Props) => {
+export const SendingOption = ({onFileSelect,onCall}:Props) => {
     const imageRef = useRef<HTMLInputElement>(null);
     const videoRef = useRef<HTMLInputElement>(null);
     const audioRef = useRef<HTMLInputElement>(null);
     const fileRef = useRef<HTMLInputElement>(null);
     const [openCamera, setOpenCamera] = useState(false);
-    
     const upload = (file?: File) => {
         if (!file) return;
         onFileSelect(file);
     };
-
     return(<>
         <div>
             <input hidden type="file" accept="image/*" ref={imageRef} onChange={(e)=>upload(e.target.files?.[0])}/>
@@ -56,11 +54,8 @@ export const SendingOption = ({onFileSelect,onVoiceCall}:Props) => {
                     <Button variant={"ghost"} size={"icon"}><PhoneCall/></Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="flex flex-col">
-                    <DropdownMenuItem onClick={onVoiceCall}>
-                        <PhoneCallIcon/>
-                        Audio Call
-                    </DropdownMenuItem>
-                    <DropdownMenuItem><FileVideoCameraIcon/>Video Call</DropdownMenuItem>
+                    <DropdownMenuItem onClick={()=>onCall("audio")}><PhoneCallIcon/>Audio Call</DropdownMenuItem>
+                    <DropdownMenuItem onClick={()=>onCall("video")}><Video/>Video Call</DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
         </div>

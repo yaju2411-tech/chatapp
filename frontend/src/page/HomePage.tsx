@@ -17,6 +17,7 @@ import { socket } from "@/socket/socket";
 import { ArrowDown, ArrowLeft, ArrowUp, Command } from "lucide-react";
 import React, { useRef, useState,useEffect } from "react";
 import { RemoteAudio } from "@/components/call/RemoteAudio";
+import { VideoCall } from "@/components/call/VideoCall";
 
 export default function Page() {
   const {data} = useProfile();
@@ -36,8 +37,9 @@ export default function Page() {
   const deleteManyMutation = useDeleteManyMessages();
   const clearChatMutation = useClearChat();
   const deleteConversationMutation = useDeleteConversation();
-  const {endCall,startCall,remoteStream,incomingCall,acceptCall,
-  rejectCall,callAccepted,calling} = useWebRTC({socket,currentUser:user,otherUser});
+  const {endCall,startCall,remoteStream,incomingCall,acceptCall,rejectCall,
+  callAccepted,calling,callType,localStream,} = useWebRTC({socket,currentUser: user,otherUser,});
+  const callUser = incomingCall?.caller || otherUser;
     
   useEffect(() => {
     if(user){
@@ -79,7 +81,6 @@ export default function Page() {
     };
   },[]);
 
-  
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
@@ -112,7 +113,6 @@ export default function Page() {
     });
   };
 
-  
   return (
     <>
     <TooltipProvider>
@@ -196,7 +196,7 @@ export default function Page() {
                   )}
                 </div>
                 <div className="sticky shrink-0 border-t p-4 bg-black">
-                  <MessageInput conversationId={selectedchat} currentUser={user} receiver={otherUser} onVoiceCall={startCall}/>
+                  <MessageInput conversationId={selectedchat} currentUser={user} receiver={otherUser} onCall={startCall}/>
                 </div>
               </>) : (
               <div className="flex flex-1 flex-col items-center justify-center" style={{
@@ -212,8 +212,16 @@ export default function Page() {
         </SidebarInset>
       </SidebarProvider>
     </TooltipProvider>
-    <IncomingCallDialog open={!!incomingCall} caller={incomingCall?.caller} onReject={rejectCall} onAccept={acceptCall}/>
-    <CallDialog open={calling} accepted={callAccepted} user={otherUser} onEnd={endCall}/>
-    <RemoteAudio stream={remoteStream} />
+
+    <IncomingCallDialog open={!!incomingCall} caller={incomingCall?.caller} callType={callType ?? "audio"} onAccept={acceptCall} onReject={rejectCall}/>
+    {calling && callType==="audio" &&
+      <>
+        <CallDialog open={calling} accepted={callAccepted} user={callUser} onEnd={endCall}/>      
+        <RemoteAudio stream={remoteStream} />
+      </>
+    }
+    {calling && callType==="video" &&
+      <VideoCall open={calling} accept={callAccepted} user={callUser} localStream={localStream} remoteStream={remoteStream} onEnd={endCall} />
+    }
   </>)
 }

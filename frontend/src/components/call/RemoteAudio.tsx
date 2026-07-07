@@ -1,11 +1,17 @@
 import { useEffect, useRef } from "react";
 
-export const RemoteAudio = ({ stream }: { stream: MediaStream | null }) => {
+interface Props {
+    stream: MediaStream | null;
+}
+
+export const RemoteAudio = ({ stream }: Props) => {
     const audioRef = useRef<HTMLAudioElement>(null);
     useEffect(() => {
-        if (!audioRef.current || !stream) return;
-        audioRef.current.srcObject = stream;
-        audioRef.current.play().then(() => console.log("Playing Remote Audio")).catch(console.error);
+        if (!audioRef.current) return;
+        audioRef.current.srcObject = stream ?? null;
+        audioRef.current.play().catch(() => {});
     }, [stream]);
-    return (<audio ref={audioRef} autoPlay playsInline/>);
+    return (
+        <audio ref={audioRef} autoPlay playsInline/>
+    );
 };
