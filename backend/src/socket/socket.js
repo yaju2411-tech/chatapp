@@ -5,11 +5,17 @@ export const onlineUsers = new Map();
 
 export const setupSocket = () => {
     const io = getIo();
+    const reconnectTimers = new Map();  
     io.on("connection",(socket)=>{
         console.log("Socket connected:",socket.id);
         //setup
         socket.on("setup", async (userId)=>{
             onlineUsers.set(userId,socket.id);
+            if(reconnectTimers.has(userId)){
+                clearTimeout(reconnectTimers.get(userId));
+                reconnectTimers.delete(userId);
+                console.log("reconnsect timer is cancelled",userId);
+            }
             await User.findByIdAndUpdate(userId,{
                 isOnline:true
             });
@@ -69,6 +75,11 @@ export const setupSocket = () => {
                 getIo().to(receiverSocket).emit("call-ended");
             }
         });
+        socket.on("recover-call", ({ targetUserId, callType }) => {
+            const targetSocket = onlineUsers.get(targetUserId);
+            if (!targetSocket) return;
+            io.to(targetSocket).emit("call-recovering", {callType});
+        });
         // ==================== WebRTC Signaling ====================
         // Caller -> Receiver
         socket.on("webrtc-offer", ({ targetUserId, offer }) => {
@@ -95,19 +106,31 @@ export const setupSocket = () => {
             }
         });
         //disconnect
-        socket.on("disconnect",async()=>{   
-            for(const [userId,socketId] of onlineUsers.entries()){
-                if(socketId === socket.id){
+        socket.on("disconnect", async () => {
+        let disconnectedUserId = null;
+            for (const [userId, socketId] of onlineUsers.entries()) {
+                if (socketId === socket.id) {
+                    disconnectedUserId = userId;
                     onlineUsers.delete(userId);
-                    await User.findByIdAndUpdate(userId,{
-                        isOnline:false,
-                        lastSeen:new Date()
+                    await User.findByIdAndUpdate(userId, {
+                        isOnline: false,
+                        lastSeen: new Date(),
                     });
                     break;
                 }
             }
-            io.emit("online-users",Array.from(onlineUsers.keys()));
-            console.log("Disconnected:",socket.id);
+            io.emit("online-users", Array.from(onlineUsers.keys()));
+            console.log("Disconnected:", socket.id);
+            if (disconnectedUserId) {
+                const timer = setTimeout(() => {
+                    console.log("Reconnect timeout:", disconnectedUserId);
+                    io.emit("call-ended", {
+                        userId: disconnectedUserId,
+                    });
+                    reconnectTimers.delete(disconnectedUserId);
+                }, 30000);
+                reconnectTimers.set(disconnectedUserId, timer);
+            }
         });
     });
 };

@@ -23,9 +23,46 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
     const gettingMediaRef = useRef(false);
 
     useEffect(()=>{
+        const handleBeforeUnload = () => {
+            if(!calling && !targetUserRef.current) return;
+            sessionStorage.setItem("active-call",JSON.stringify({
+                targetUserId:targetUserRef.current,
+                callType:callType
+            }));
+        }
+        window.addEventListener("beforeunload",handleBeforeUnload);
+        return ()=>{
+            window.removeEventListener("beforeunload",handleBeforeUnload);
+        }
+    },[calling]);
+    useEffect(() => {
+        const activeCall = sessionStorage.getItem("active-call");
+        if (!activeCall) return;
+        const data = JSON.parse(activeCall);
+        console.log("Recovering call", data);
+        targetUserRef.current = data.targetUserId;
+        callTypeRef.current = data.callType;
+        setCallType(data.callType);
+        setCalling(true);
+        sessionStorage.removeItem("active-call");
+        socket.emit("recover-call", {
+            targetUserId: data.targetUserId,
+            callType: data.callType,
+        });
+    }, []);
+    useEffect(() => {
+        const handleRecovering = () => {
+            setCalling(true);
+        };
+        socket.on("call-recovering", handleRecovering);
+        return () => {
+            socket.off("call-recovering", handleRecovering);
+        };
+    }, []);
+
+    useEffect(()=>{
         otherUserRef.current = otherUser;
     },[otherUser]);
-
     useEffect(()=>{
         const handleIncomingCall = (data:any) => {
             incomingCallRef.current = data;
@@ -319,7 +356,7 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
         setRemoteStream(null);
         setLocalMedia(null);
     }
-
+    
     return {
         endCall,startCall,remoteStream,incomingCall,localStream:localMedia,
         acceptCall,rejectCall,callAccepted,calling,callType
