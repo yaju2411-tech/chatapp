@@ -48,10 +48,13 @@ export const uploadMediaMessage = async (req, res) => {
         const upload = await uploadBuffer(req.file.buffer,"chat-app",resource_type);
         const media = { image: "",video: "",audio: "",file: ""};
         media[messageType] = upload.secure_url;
+        
+        const { replyTo } = req.body;
         const message = await Message.create({
             conversation: conversationId,
             sender: senderId,
             messageType,
+            replyTo: replyTo || null,
             ...media,
         });
         const lastMessage = messageType === "image" ? "📷 Photo" : messageType === "video" ? "🎥 Video" : messageType === "audio" ? "🎵 Audio" : "📄 File";
@@ -75,7 +78,15 @@ export const uploadMediaMessage = async (req, res) => {
         }
         await conversation.save();
         await createNotification(senderId,receiverId,"new_message","Sent media");
-        const populated = await Message.findById(message._id).populate("sender", "name avatar email");
+        const populated = await Message.findById(message._id)
+            .populate("sender", "name avatar email")
+            .populate({
+                path: "replyTo",
+                populate: {
+                    path: "sender",
+                    select: "name avatar"
+                }
+            });
         getIo().to(conversationId).emit("new-message",populated);
         res.status(201).json({
             success: true,

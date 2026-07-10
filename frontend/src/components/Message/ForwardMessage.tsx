@@ -9,10 +9,11 @@ import { Button } from "../ui/button";
 interface Props {
     open: boolean;
     onClose: () => void;
+    onSuccess?: () => void;
     messageIds: string[];
 }
 
-export const ForwardMessage = ({ open, onClose, messageIds }: Props) => {
+export const ForwardMessage = ({ open, onClose, onSuccess, messageIds }: Props) => {
     const { data: conversations } = useConversations();
     const { data: profileData } = useProfile();
     const currentUser = profileData?.user;
@@ -30,6 +31,7 @@ export const ForwardMessage = ({ open, onClose, messageIds }: Props) => {
             onSuccess: () => {
                 setSelectedChats([]);
                 onClose();
+                if (onSuccess) onSuccess();
             }
         });
     }

@@ -99,9 +99,12 @@ export const deleteManyMessages = async (data: {conversationId: string;messageId
   return response.data;
 };
 
-export const uploadMediaMessage = async(conversationId:string,file:File) => {
+export const uploadMediaMessage = async(conversationId:string,file:File, replyTo?: string) => {
     const formData = new FormData();
     formData.append("file",file);
+    if (replyTo) {
+        formData.append("replyTo", replyTo);
+    }
     const response = await api.post(`/message/upload/${conversationId}`,formData,{
         headers: {"Content-Type": "multipart/form-data",},
     });

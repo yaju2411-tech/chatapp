@@ -8,11 +8,10 @@ interface Props{
     onCancel : ()=> void;
     onDelete : ()=> void;
     onCopy : ()=> void;
-    setSelectionMode : any;
     selectedMessages : string[];
 }
 
-export const MessageSelected = ({onCancel,onDelete,onCopy,setSelectionMode,selectedMessages}:Props) => {
+export const MessageSelected = ({onCancel,onDelete,onCopy,selectedMessages}:Props) => {
     const [openForward,setOpenForward] = useState(false);
     return(<>
         <DropdownMenu>
@@ -23,7 +22,7 @@ export const MessageSelected = ({onCancel,onDelete,onCopy,setSelectionMode,selec
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={()=>{onCopy;setSelectionMode(false)}}>
+                <DropdownMenuItem onClick={onCopy}>
                     <Copy className="mr-2 h-4 w-4"/>Copy
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setOpenForward(true)}>
@@ -38,6 +37,6 @@ export const MessageSelected = ({onCancel,onDelete,onCopy,setSelectionMode,selec
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
-        <ForwardMessage open={openForward} onClose={() => setOpenForward(false)} messageIds={selectedMessages}/>
+        <ForwardMessage open={openForward} onClose={() => setOpenForward(false)} onSuccess={onCancel} messageIds={selectedMessages}/>
     </>);
 }

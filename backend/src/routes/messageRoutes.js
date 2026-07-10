@@ -17,9 +17,9 @@ router.post("/sendMessage",authMiddlware,ConversationMiddlware,sendMessage);
 router.get("/:conversationId",authMiddlware,ConversationMiddlware,getMessage);
 router.patch("/seen/conversation/:conversationId",authMiddlware,ConversationMiddlware,markMessageSeen);
 router.post("/upload/:id",authMiddlware,ConversationMiddlware,upload.single("file"),uploadMediaMessage);
-router.delete("/delete/:id",authMiddlware,deleteMessage);
-router.delete("/clear/:id",authMiddlware,clearChat);
-router.delete("/deleteMany",authMiddlware,deleteManyMessages);
-router.post("/forward",authMiddlware,forwardMessages);
+router.delete("/delete/:id",authMiddlware,ConversationMiddlware,deleteMessage);
+router.delete("/clear/:id",authMiddlware,ConversationMiddlware,clearChat);
+router.delete("/deleteMany",authMiddlware,ConversationMiddlware,deleteManyMessages);
+router.post("/forward",authMiddlware,ConversationMiddlware,forwardMessages);
 
 export default router;

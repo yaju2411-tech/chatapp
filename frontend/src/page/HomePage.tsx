@@ -59,20 +59,18 @@ export default function Page() {
         }
       });
     }
-    const el = scrollRef.current;
-    if (!el) return;
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
-    if (nearBottom) {
-      bottomRef.current?.scrollIntoView({
-        behavior: "smooth",
-      });
-    }
+
     return () => {
       if(selectedchat){
         socket.emit("leave-conversation", selectedchat);
       }
     };
   }, [user,selectedchat]);
+
+  // Reset message selection when switching chats
+  useEffect(() => {
+    exitSelection();
+  }, [selectedchat]);
 
   useEffect(()=>{
     socket.on("online-users",(users)=>{
@@ -146,7 +144,7 @@ export default function Page() {
             </div>
             <div className="flex items-center gap-2">
               {selectionMode && <div className="flex text-white font-semibold">{selectedMessages.length} Selected</div>}
-              { selectionMode ? <MessageSelected onCancel={exitSelection} onDelete={handleDeleteSelected} onCopy={() => setCopyTrigger(prev => prev + 1)} setSelectionMode={setSelectionMode} selectedMessages={selectedMessages}/> : 
+              { selectionMode ? <MessageSelected onCancel={exitSelection} onDelete={handleDeleteSelected} onCopy={() => setCopyTrigger(prev => prev + 1)} selectedMessages={selectedMessages}/> : 
                 <FriendDropdown friend={otherUser} onDelete={()=>{
                     deleteConversationMutation.mutate(selectedchat);
                   }}
@@ -171,7 +169,8 @@ export default function Page() {
                   backgroundRepeat:"no-repeat"
                 }}>
                   <MessageArea conversationId={selectedchat} selectionMode={selectionMode} selectedMessages={selectedMessages} 
-                    setSelectionMode={setSelectionMode} toggleMessage={toggleMessage} copyTrigger={copyTrigger} setReply={setReply}/>
+                    setSelectionMode={setSelectionMode} toggleMessage={toggleMessage} copyTrigger={copyTrigger} setReply={setReply}
+                    bottomRef={bottomRef} />
                   <div ref={bottomRef}/>
                   {showTopBtn && (
                   <Button size="icon" className="fixed right-6 top-24 rounded-full z-50"

@@ -5,7 +5,8 @@ export const getMessage = async(req,res) => {
     try{
         const messages = await Message.find({
             conversation:req.params.conversationId
-        }).populate({
+        }).populate("sender", "name avatar email")
+        .populate({
             path: "replyTo",
             select: "text sender messageType image video audio gifUrl file",
             populate: {

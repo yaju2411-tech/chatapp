@@ -1,10 +1,10 @@
 import { friendEmmiter } from "../emitter/friendEmitter.js";
-import { resend } from "../config/resend.js";
+import { transporter } from "../config/nodemailer.js";
 
 friendEmmiter.on("friend-request",async(sender,receiver)=>{
     try{
-        await resend.emails.send({
-            from: "Chat App <onboarding@resend.dev>",
+        await transporter.sendMail({
+            from: `"Chat App" <${process.env.EMAIL_USER}>`,
             to: receiver.email,
             subject:"New Friend Request",
             html:`<h2>You have a new firend request from ${sender.name}</h2>
@@ -18,8 +18,8 @@ friendEmmiter.on("friend-request",async(sender,receiver)=>{
 
 friendEmmiter.on("friend-accepted",async(receiver,sender)=>{
     try{
-        await resend.emails.send({
-            from: "Chat App <onboarding@resend.dev>",
+        await transporter.sendMail({
+            from: `"Chat App" <${process.env.EMAIL_USER}>`,
             to: receiver.email,
             subject:"Friend Request Accepted",
             html:`
@@ -33,8 +33,8 @@ friendEmmiter.on("friend-accepted",async(receiver,sender)=>{
 
 friendEmmiter.on("friend-rejected",async(receiver,sender)=>{
     try{
-        await resend.emails.send({
-            from: "Chat App <onboarding@resend.dev>",
+        await transporter.sendMail({
+            from: `"Chat App" <${process.env.EMAIL_USER}>`,
             to: receiver.email,
             subject:"Friend Request Rejected",
             html:`<h2>${receiver.name} rejected your friend request.</h2>`
@@ -46,8 +46,8 @@ friendEmmiter.on("friend-rejected",async(receiver,sender)=>{
 
 friendEmmiter.on("friend-removed", async (sender, receiver) => {
     try {
-        await resend.emails.send({
-            from: "Chat App <onboarding@resend.dev>",
+        await transporter.sendMail({
+            from: `"Chat App" <${process.env.EMAIL_USER}>`,
             to: receiver.email,
             subject: "Friend Removed",
             html: `

@@ -77,8 +77,8 @@ export const useDeleteManyMessages = () => {
 export const useUploadMedia = () => {
     const queryClient = useQueryClient();
     return useMutation({
-      mutationFn: ({conversationId,file,}: {conversationId: string;file: File;}) =>
-        uploadMediaMessage(conversationId, file),
+      mutationFn: ({conversationId,file,replyTo}: {conversationId: string;file: File;replyTo?: string}) =>
+        uploadMediaMessage(conversationId, file, replyTo),
         onSuccess: (_, variables) => {
           queryClient.invalidateQueries({
             queryKey: ["messages", variables.conversationId],

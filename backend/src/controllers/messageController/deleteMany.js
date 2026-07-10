@@ -5,23 +5,23 @@ export const deleteManyMessages = async (req, res) => {
   try {
     const { conversationId, messageIds } = req.body;
     const messages = await Message.find({
-      _id: { $in: messageIds },
-      sender: req.user.id,
+      _id: { $in: messageIds }
     });
+
     const ids = messages.map((m) => m._id);
     await Message.updateMany(
       {
         _id: { $in: ids },
-      },{
-          $set: {
-              isDeleted: true,
-              text: "This message was deleted",
-              gifUrl: "",
-              image: "",
-              video: "",
-              audio: "",
-              file: "",
-          },
+      }, {
+      $set: {
+        isDeleted: true,
+        text: "This message was deleted",
+        gifUrl: "",
+        image: "",
+        video: "",
+        audio: "",
+        file: "",
+      },
     });
     const io = getIo();
     io.to(conversationId).emit("messages-deleted", {

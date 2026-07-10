@@ -30,6 +30,7 @@ export default function MessageInput({conversationId,currentUser,receiver,onCall
     const {data: searchData} = useSearchGifs(debounceSearch);
     const gifs = search.trim() ? searchData?.gifs || [] : trendingData?.gifs || [];
     const uploadMutation = useUploadMedia();
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     const handleTyping = (e:any) => {
         setText(e.target.value);
@@ -48,19 +49,19 @@ export default function MessageInput({conversationId,currentUser,receiver,onCall
             conversationId,text,replyTo: reply?._id,
         },{
             onSuccess: () => {
-                clearReply();setText("");setPicker(null);
+                clearReply();
+                setText("");
+                setPicker(null);
+                if (textareaRef.current) {
+                    textareaRef.current.style.height = "auto";
+                }
             }
         });
     };
    const handleFileUpload = (file: File) => {
-        uploadMutation.mutate({conversationId,file,},{
-            onSuccess: (data) => {
-                sendMessageMutation.mutate({
-                    conversationId,replyTo: reply?._id,image: data.image,
-                    video: data.video,audio: data.audio,file: data.file,
-                    messageType: data.messageType,
-                });
-            clearReply();
+        uploadMutation.mutate({conversationId,file,replyTo: reply?._id},{
+            onSuccess: () => {
+                clearReply();
             },
         });
     };
@@ -81,7 +82,7 @@ export default function MessageInput({conversationId,currentUser,receiver,onCall
                 <Button size="icon" variant="ghost" onClick={clearReply}><X/></Button>
             </div>
         )}
-        <div className="relative flex items-end rounded-2xl bg-zinc-900/95 border border-zinc-700 px-3 py-2 shadow-lg backdrop-blur-md text-white">
+        <div className="relative flex items-center rounded-2xl bg-zinc-900/95 border border-zinc-700 px-3 py-2 shadow-lg backdrop-blur-md text-white">
             <SendingOption onFileSelect={handleFileUpload} receiver={receiver} currentUser={currentUser} onCall={onCall}/>
             <Button variant="ghost" size="icon"
                 onClick={() =>setPicker(prev => prev === "emoji" ? null : "emoji")}>
@@ -91,11 +92,11 @@ export default function MessageInput({conversationId,currentUser,receiver,onCall
                 onClick={() => setPicker(prev => prev === "gif" ? null : "gif")}>
                 <FileImage />
             </Button>
-            <textarea rows={1} value={text} placeholder="Type message..."
+            <textarea ref={textareaRef} rows={1} value={text} placeholder="Type message..."
                 onChange={handleTyping} onInput={(e)=>{
                     e.currentTarget.style.height="auto";
                     e.currentTarget.style.height=e.currentTarget.scrollHeight+"px";}}
-                className="flex-1 resize-none bg-transparent outline-none text-white placeholder:text-zinc-400 min-h-[24px] max-h-40 overflow-y-auto"/>
+                className="flex-1 resize-none bg-transparent outline-none text-white placeholder:text-zinc-400 min-h-[24px] max-h-40 overflow-y-auto py-1 text-sm leading-normal"/>
             {picker === "emoji" && (
                 <div className="absolute bottom-16 left-0 z-50">
                     <EmojiPicker theme={Theme.DARK} onEmojiClick={(emoji)=> setText(prev=>prev+emoji.emoji)}/>

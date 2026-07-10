@@ -1,71 +1,68 @@
-import {BadgeCheck,Bell,ChevronsUpDown,CreditCard,LogOut,Sparkles,} from "lucide-react"
-import {Avatar,AvatarFallback,AvatarImage,} from "@/components/ui/avatar"
-import {DropdownMenu,DropdownMenuContent,DropdownMenuGroup,DropdownMenuItem,DropdownMenuLabel,DropdownMenuSeparator,DropdownMenuTrigger,} from "@/components/ui/dropdown-menu"
-import {SidebarMenu,SidebarMenuButton,SidebarMenuItem,useSidebar,} from "@/components/ui/sidebar"
+import { BadgeCheck, Bell, CreditCard, LogOut, Sparkles, } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage, } from "@/components/ui/avatar"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, } from "@/components/ui/dropdown-menu"
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar, } from "@/components/ui/sidebar"
 import { useProfile, useUpdateProfile } from "@/hooks/authHook/useProfileHook";
 import { useEffect, useState } from "react";
 import { useLogout } from "@/hooks/authHook/useLoginSignup";
 import { uploadImage } from "@/service/cloudinary";
 import { toast } from "sonner";
-import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogTrigger,} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { socket } from "@/socket/socket";
 
-export function NavUser(){
-    const {data} = useProfile();
-    const user = data?.user;
-    const [name,setName] = useState("");
-    const [previewAvatar,setPreviewAvatar] = useState("");
-    const [avatarFile,setAvatarFile] = useState<File | null>(null);
-    
-    const logout = useLogout();
-    const updateProfileMutation = useUpdateProfile();
-    const { isMobile } = useSidebar();
-  
-    useEffect(() => {
-      if(user){
-          if(user?._id){
-            socket.emit("setup",user._id);
-          } 
-          setName(user.name);
-          setPreviewAvatar(user.avatar);
+export function NavUser() {
+  const { data } = useProfile();
+  const user = data?.user;
+  const [name, setName] = useState("");
+  const [previewAvatar, setPreviewAvatar] = useState("");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+
+  const logout = useLogout();
+  const updateProfileMutation = useUpdateProfile();
+  const { isMobile } = useSidebar();
+
+  useEffect(() => {
+    if (user) {
+      if (user?._id) {
+        socket.emit("setup", user._id);
       }
+      setName(user.name);
+      setPreviewAvatar(user.avatar);
+    }
   }, [user]);
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      setAvatarFile(file);
-      setPreviewAvatar(URL.createObjectURL(file));
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarFile(file);
+    setPreviewAvatar(URL.createObjectURL(file));
   };
-  const handleUpdateProfile = async (e:any) => {
-      e.preventDefault();
-      let avatar = user?.avatar;
-      if (avatarFile) {
-          avatar = await uploadImage(avatarFile);
-      }
-      updateProfileMutation.mutate({ name, avatar });
-      setAvatarFile(null);
-      toast.success("Profile Updated Succesfully",{position:"top-center"});
+  const handleUpdateProfile = async (e: any) => {
+    e.preventDefault();
+    let avatar = user?.avatar;
+    if (avatarFile) {
+      avatar = await uploadImage(avatarFile);
+    }
+    updateProfileMutation.mutate({ name, avatar });
+    setAvatarFile(null);
+    toast.success("Profile Updated Succesfully", { position: "top-center" });
   };
   return (
     <SidebarMenu>
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground md:h-8 md:p-0"
-            >
-              <Avatar className="h-8 w-8 rounded-lg">
+            <SidebarMenuButton className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground h-10 w-10 rounded-xl p-0 hover:bg-zinc-900">
+              <Avatar className="h-8 w-8 rounded-xl">
                 <AvatarImage src={user?.avatar} alt={user?.name} />
-                <AvatarFallback className="rounded-lg">CN</AvatarFallback>
+                <AvatarFallback className="rounded-xl bg-zinc-850 text-zinc-300">
+                  {user?.name?.charAt(0) || "U"}
+                </AvatarFallback>
               </Avatar>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user?.name}</span>
-                <span className="truncate text-xs">{user?.email}</span>
+              <div className="sr-only">
+                <span>{user?.name}</span>
               </div>
-              <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -97,34 +94,34 @@ export function NavUser(){
             <DropdownMenuGroup>
               <Dialog>
                 <DialogTrigger asChild>
-                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                        <BadgeCheck />
-                        Update Profile
-                    </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                    <BadgeCheck />
+                    Update Profile
+                  </DropdownMenuItem>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
+                  <DialogHeader>
                     <DialogTitle>Update Profile</DialogTitle>
-                    </DialogHeader>
-                    <form onSubmit={handleUpdateProfile} className="space-y-4">
+                  </DialogHeader>
+                  <form onSubmit={handleUpdateProfile} className="space-y-4">
                     <div className="flex justify-center">
-                        <Avatar className="h-24 w-24">
+                      <Avatar className="h-24 w-24">
                         <AvatarImage src={previewAvatar} />
                         <AvatarFallback>
-                            {user?.name?.charAt(0)}
+                          {user?.name?.charAt(0)}
                         </AvatarFallback>
-                        </Avatar>
+                      </Avatar>
                     </div>
                     <label htmlFor="">Update Profile</label>
-                    <Input type="file" accept="image/*" onChange={handleAvatarChange} className="mt-2"/>
+                    <Input type="file" accept="image/*" onChange={handleAvatarChange} className="mt-2" />
                     <label htmlFor="">Update Profile</label>
-                    <Input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} className="mt-2"/>
+                    <Input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} className="mt-2" />
                     <Button type="submit" className="w-full" disabled={updateProfileMutation.isPending}>
-                        {updateProfileMutation.isPending ? "Updating...": "Update Profile"}
+                      {updateProfileMutation.isPending ? "Updating..." : "Update Profile"}
                     </Button>
-                    </form>
+                  </form>
                 </DialogContent>
-                </Dialog>
+              </Dialog>
               <DropdownMenuItem>
                 <CreditCard />
                 Billing

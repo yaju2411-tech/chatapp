@@ -1,43 +1,41 @@
 import { User } from "../../models/User.js";
-import { resend } from "../../config/resend.js";
+import { transporter } from "../../config/nodemailer.js";
 
-export const resendOtp = async(req,res)=>{
-    try{
-        const {email} = req.body;
-        const user = await User.findOne({email});
-        if(!user){
+export const resendOtp = async (req, res) => {
+    try {
+        const { email } = req.body;
+        const user = await User.findOne({ email });
+        if (!user) {
             return res.status(404).json({
-                success:false,
-                message:"User not found"
+                success: false,
+                message: "User not found"
             });
         }
 
         const otp = Math.floor(
-            100000 + Math.random()*900000
+            100000 + Math.random() * 900000
         ).toString();
 
         user.otp = otp;
-        user.otpExpire = Date.now()+5*60*1000;
+        user.otpExpire = Date.now() + 5 * 60 * 1000;
 
         await user.save();
-
-        await resend.emails.send({
-            from: "Chat App <onboarding@resend.dev>",
+        await transporter.sendMail({
+            from: `"Chat App" <${process.env.EMAIL_USER}>`,
             to: email,
             subject: "Resend OTP",
             html: `<h1>${otp}</h1>`,
         });
-
         res.status(200).json({
-            success:true,
-            message:"OTP sent again"
+            success: true,
+            message: "OTP sent again"
         });
 
     }
-    catch(err){
+    catch (err) {
         res.status(500).json({
-            success:false,
-            message:err.message
+            success: false,
+            message: err.message
         });
     }
 };
