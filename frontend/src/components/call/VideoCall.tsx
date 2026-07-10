@@ -5,13 +5,14 @@ import { Mic,MicOff,PhoneOff,Video,VideoOff,} from "lucide-react";
 interface Props {
     open: boolean;
     accept: boolean;
+    recover:boolean
     user: any;
     localStream: MediaStream | null;
     remoteStream: MediaStream | null;
     onEnd: () => void;
 }
 
-export const VideoCall = ({open,accept,user,localStream,remoteStream,onEnd,}: Props) => {
+export const VideoCall = ({open,accept,recover,user,localStream,remoteStream,onEnd,}: Props) => {
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
     const [seconds, setSeconds] = useState(0);
@@ -19,15 +20,15 @@ export const VideoCall = ({open,accept,user,localStream,remoteStream,onEnd,}: Pr
     const [micEnabled, setMicEnabled] = useState(true);
 
     useEffect(() => {
-        if (!accept) {
+        if (!(accept && !recover)) {
             setSeconds(0);
             return;
         }
         const timer = setInterval(() => {
-            setSeconds((s) => s + 1);
+            setSeconds(s => s + 1);
         }, 1000);
         return () => clearInterval(timer);
-    }, [accept]);
+    }, [accept, recover]);
     useEffect(() => {
         if (!localVideoRef.current) return;
         localVideoRef.current.srcObject = localStream;
@@ -62,8 +63,17 @@ export const VideoCall = ({open,accept,user,localStream,remoteStream,onEnd,}: Pr
 
     return (<>
         <div className="fixed inset-0 z-[9999] bg-black">
-            {remoteStream ? (
-                <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 h-full w-full object-cover"/>
+            {recover ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-zinc-950 text-white">
+                    <div className="text-center">
+                        <p className="text-xl font-semibold">Reconnecting...</p>
+                        <p className="text-zinc-400 mt-2">
+                            Trying to restore your call
+                        </p>
+                    </div>
+                </div>
+            ) : remoteStream ? (
+                <video ref={remoteVideoRef} autoPlay playsInline/>
             ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 text-white">
                     <img src={user?.avatar} className="h-28 w-28 rounded-full object-cover"/>
@@ -71,13 +81,14 @@ export const VideoCall = ({open,accept,user,localStream,remoteStream,onEnd,}: Pr
                     <p className="mt-3 text-zinc-400">Connecting...</p>
                 </div>
             )}
+
             <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/80 to-transparent" />
             <div className="absolute left-6 top-6 text-white">
                 <h2 className="text-2xl font-bold">
                     {user?.name}
                 </h2>
                 <p className="text-sm text-zinc-300">
-                    {accept ? time : "Calling..."}
+                    {accept ? time : recover ? "Reconnecting..." : "Calling..."}
                 </p>
             </div>
             <video ref={localVideoRef} muted autoPlay playsInline
@@ -86,13 +97,13 @@ export const VideoCall = ({open,accept,user,localStream,remoteStream,onEnd,}: Pr
                 <Button size="icon" onClick={toggleMic}
                     className="h-14 w-14 rounded-full bg-zinc-800 hover:bg-zinc-700">
                     {micEnabled ? <Mic /> : <MicOff />}
-                </Button>
+                </Button>               
                 <Button size="icon" onClick={toggleCamera}
                     className="h-14 w-14 rounded-full bg-zinc-800 hover:bg-zinc-700">
                     {cameraEnabled ? <Video /> : <VideoOff />}
                 </Button>
                 <Button size="icon" onClick={onEnd}
-                    className="h-16 w-16 rounded-full bg-red-600 hover:bg-red-700">
+                    className="h-14 w-14 rounded-full bg-red-600 hover:bg-red-700">
                     <PhoneOff />
                 </Button>
             </div>

@@ -90,16 +90,12 @@ export function Home({ setSelectedchat,selectedchat, ...props }: React.Component
                   onSelect={() => {
                     createConversationMutation.mutate(friend._id, {
                       onSuccess: (data) => {
-                        setSelectedchat(
-                          data.conversation._id
-                        );
-                      }
-                    });
-                  } }
+                        setSelectedchat(data.conversation._id);
+                  }});
+                  }}
                   onDelete={() => {
                     removeFriendMutation.mutate(friend._id);
-                  }} 
-                />)
+                  }}/>)
               })}
             </SidebarGroupContent>
           </SidebarGroup>

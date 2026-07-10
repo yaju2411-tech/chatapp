@@ -88,6 +88,12 @@ export const clearChat = async (conversationId: string) => {
     return response.data;
 };
 
+export const forwardMessages = async (data:{conversationIds:string[];messageIds:string[];
+}) => {
+    const response = await api.post("/message/forward",data);
+    return response.data;
+};
+
 export const deleteManyMessages = async (data: {conversationId: string;messageIds: string[];}) => {
   const response = await api.delete("/message/deleteMany", {data});
   return response.data;

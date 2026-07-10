@@ -45,6 +45,10 @@ const MessageSchema = mongoose.Schema({
       ref: "Message",
       default: null,
     },
+    forwarded:{
+        type:Boolean,
+        default:false
+    },
     seenBy: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",

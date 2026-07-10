@@ -10,8 +10,7 @@ const uploadBuffer = (buffer, folder, resource_type) => {
     return new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
             {
-                folder,
-                resource_type,
+                folder,resource_type,
             },
             (err, result) => {
                 if (err) reject(err);
@@ -46,17 +45,8 @@ export const uploadMediaMessage = async (req, res) => {
             resource_type = "video";
             messageType = "audio";
         }
-        const upload = await uploadBuffer(
-            req.file.buffer,
-            "chat-app",
-            resource_type
-        );
-        const media = {
-            image: "",
-            video: "",
-            audio: "",
-            file: "",
-        };
+        const upload = await uploadBuffer(req.file.buffer,"chat-app",resource_type);
+        const media = { image: "",video: "",audio: "",file: ""};
         media[messageType] = upload.secure_url;
         const message = await Message.create({
             conversation: conversationId,
@@ -84,17 +74,9 @@ export const uploadMediaMessage = async (req, res) => {
             });
         }
         await conversation.save();
-        await createNotification(
-            senderId,
-            receiverId,
-            "new_message",
-            "Sent media"
-        );
+        await createNotification(senderId,receiverId,"new_message","Sent media");
         const populated = await Message.findById(message._id).populate("sender", "name avatar email");
-        getIo().to(conversationId).emit(
-            "new-message",
-            populated
-        );
+        getIo().to(conversationId).emit("new-message",populated);
         res.status(201).json({
             success: true,
             message: populated,

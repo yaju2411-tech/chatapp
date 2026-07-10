@@ -1,13 +1,19 @@
 import { Copy, ForwardIcon, MoreVertical,Trash2, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
+import { useState } from "react";
+import { ForwardMessage } from "./ForwardMessage";
 
 interface Props{
     onCancel : ()=> void;
     onDelete : ()=> void;
+    onCopy : ()=> void;
+    setSelectionMode : any;
+    selectedMessages : string[];
 }
 
-export const MessageSelected = ({onCancel,onDelete}:Props) => {
+export const MessageSelected = ({onCancel,onDelete,onCopy,setSelectionMode,selectedMessages}:Props) => {
+    const [openForward,setOpenForward] = useState(false);
     return(<>
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -17,11 +23,12 @@ export const MessageSelected = ({onCancel,onDelete}:Props) => {
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={()=>{onCopy;setSelectionMode(false)}}>
                     <Copy className="mr-2 h-4 w-4"/>Copy
                 </DropdownMenuItem>
-                <DropdownMenuItem>
-                    <ForwardIcon className="mr-2 h-4 w-4"/>Forward
+                <DropdownMenuItem onClick={() => setOpenForward(true)}>
+                    <ForwardIcon className="mr-2 h-4 w-4"/>
+                    Forward
                 </DropdownMenuItem>
                 <DropdownMenuItem className="text-red-500" onClick={onDelete}>
                     <Trash2 className="mr-2 h-4 w-4"/>Delete
@@ -31,5 +38,6 @@ export const MessageSelected = ({onCancel,onDelete}:Props) => {
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
+        <ForwardMessage open={openForward} onClose={() => setOpenForward(false)} messageIds={selectedMessages}/>
     </>);
 }

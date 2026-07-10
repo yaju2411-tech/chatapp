@@ -9,6 +9,7 @@ import { clearChat } from "../controllers/messageController/clearChat.js";
 import { deleteManyMessages } from "../controllers/messageController/deleteMany.js";
 import { upload } from "../middlware/uploadMiddlware.js";
 import { uploadMediaMessage } from "../controllers/messageController/uploadController.js";
+import { forwardMessages } from "../controllers/messageController/forwardController.js";
 
 const router = express.Router();
 
@@ -19,5 +20,6 @@ router.post("/upload/:id",authMiddlware,ConversationMiddlware,upload.single("fil
 router.delete("/delete/:id",authMiddlware,deleteMessage);
 router.delete("/clear/:id",authMiddlware,clearChat);
 router.delete("/deleteMany",authMiddlware,deleteManyMessages);
+router.post("/forward",authMiddlware,forwardMessages);
 
 export default router;

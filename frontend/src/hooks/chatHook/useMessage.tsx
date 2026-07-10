@@ -1,4 +1,4 @@
-import {sendMessage,getMessages,markMessageSeen,deleteMessage, clearChat, deleteManyMessages, uploadMediaMessage} from "@/service/chatApi";
+import {sendMessage,getMessages,markMessageSeen,deleteMessage, clearChat, deleteManyMessages, uploadMediaMessage, forwardMessages} from "@/service/chatApi";
 import {useMutation,useQuery,useQueryClient} from "@tanstack/react-query";
 
 const queryKey = ["messages"];
@@ -87,5 +87,20 @@ export const useUploadMedia = () => {
             queryKey: ["conversations"],
           });
         },
+    });
+};
+
+export const useForwardMessages = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: forwardMessages,
+        onSuccess: () => {
+            queryClient.invalidateQueries({
+                queryKey:["messages"]
+            });
+            queryClient.invalidateQueries({
+                queryKey:["conversations"]
+            });
+        }
     });
 };

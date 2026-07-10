@@ -37,9 +37,11 @@ export default function Page() {
   const deleteManyMutation = useDeleteManyMessages();
   const clearChatMutation = useClearChat();
   const deleteConversationMutation = useDeleteConversation();
+  const [copyTrigger, setCopyTrigger] = useState(0);
   const {endCall,startCall,remoteStream,incomingCall,acceptCall,rejectCall,
-  callAccepted,calling,callType,localStream,} = useWebRTC({socket,currentUser: user,otherUser,});
+  callAccepted,calling,callType,localStream,recovering} = useWebRTC({socket,currentUser: user,otherUser,});
   const callUser = incomingCall?.caller || otherUser;
+  const [reply,setReply] = useState<any>(null);
     
   useEffect(() => {
     if(user){
@@ -144,7 +146,7 @@ export default function Page() {
             </div>
             <div className="flex items-center gap-2">
               {selectionMode && <div className="flex text-white font-semibold">{selectedMessages.length} Selected</div>}
-              { selectionMode ? <MessageSelected onCancel={exitSelection} onDelete={handleDeleteSelected}/> : 
+              { selectionMode ? <MessageSelected onCancel={exitSelection} onDelete={handleDeleteSelected} onCopy={() => setCopyTrigger(prev => prev + 1)} setSelectionMode={setSelectionMode} selectedMessages={selectedMessages}/> : 
                 <FriendDropdown friend={otherUser} onDelete={()=>{
                     deleteConversationMutation.mutate(selectedchat);
                   }}
@@ -169,7 +171,7 @@ export default function Page() {
                   backgroundRepeat:"no-repeat"
                 }}>
                   <MessageArea conversationId={selectedchat} selectionMode={selectionMode} selectedMessages={selectedMessages} 
-                    setSelectionMode={setSelectionMode} toggleMessage={toggleMessage}/>
+                    setSelectionMode={setSelectionMode} toggleMessage={toggleMessage} copyTrigger={copyTrigger} setReply={setReply}/>
                   <div ref={bottomRef}/>
                   {showTopBtn && (
                   <Button size="icon" className="fixed right-6 top-24 rounded-full z-50"
@@ -196,7 +198,8 @@ export default function Page() {
                   )}
                 </div>
                 <div className="sticky shrink-0 border-t p-4 bg-black">
-                  <MessageInput conversationId={selectedchat} currentUser={user} receiver={otherUser} onCall={startCall}/>
+                  <MessageInput reply={reply} clearReply={() => setReply(null)} 
+                  conversationId={selectedchat} currentUser={user} receiver={otherUser} onCall={startCall}/>
                 </div>
               </>) : (
               <div className="flex flex-1 flex-col items-center justify-center" style={{
@@ -221,7 +224,7 @@ export default function Page() {
       </>
     }
     {calling && callType==="video" &&
-      <VideoCall open={calling} accept={callAccepted} user={callUser} localStream={localStream} remoteStream={remoteStream} onEnd={endCall} />
+      <VideoCall open={calling} accept={callAccepted} user={callUser} localStream={localStream} remoteStream={remoteStream} onEnd={endCall} recover={recovering}/>
     }
   </>)
 }

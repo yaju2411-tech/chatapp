@@ -7,43 +7,49 @@ interface UseWebRTCProps{
 }
 
 export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
-    const peerConnection = useRef<RTCPeerConnection | null>(null);
-    const localStream = useRef<MediaStream | null>(null);
-    const [localMedia, setLocalMedia] = useState<MediaStream | null>(null);
-    const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
-    const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
-    const [incomingCall, setIncomingCall] = useState<any>(null);
-    const [calling, setCalling] = useState(false);
     const [callAccepted, setCallAccepted] = useState(false);
     const [callType, setCallType] = useState<"audio" | "video" | null>(null);
+    const [incomingCall, setIncomingCall] = useState<any>(null);
+    const [calling, setCalling] = useState(false);
+    const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+    const [localMedia, setLocalMedia] = useState<MediaStream | null>(null);
+    const [recovering, setRecovering] = useState(false);
+    const peerConnection = useRef<RTCPeerConnection | null>(null);
+    const localStream = useRef<MediaStream | null>(null);
     const callTypeRef = useRef<"audio" | "video">("audio");
-    const incomingCallRef = useRef<any>(null);
-    const otherUserRef = useRef<any>(null);
-    const targetUserRef = useRef<string | null>(null);
     const gettingMediaRef = useRef(false);
+    const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
+    const targetUserRef = useRef<string | null>(null);
+    const otherUserRef = useRef<any>(null);
+    const incomingCallRef = useRef<any>(null);
+    const isCallerRef = useRef(false);
 
-    useEffect(()=>{
+    //if user do refresh then 
+    useEffect(() => {
         const handleBeforeUnload = () => {
-            if(!calling && !targetUserRef.current) return;
-            sessionStorage.setItem("active-call",JSON.stringify({
-                targetUserId:targetUserRef.current,
-                callType:callType
+            if (!calling || !targetUserRef.current) return;
+                sessionStorage.setItem("active-call",JSON.stringify({
+                    targetUserId: targetUserRef.current,
+                    callType: callTypeRef.current,
+                    isCaller:isCallerRef.current
             }));
-        }
-        window.addEventListener("beforeunload",handleBeforeUnload);
-        return ()=>{
-            window.removeEventListener("beforeunload",handleBeforeUnload);
-        }
-    },[calling]);
+        };
+        window.addEventListener("beforeunload", handleBeforeUnload);
+        return () => {
+            window.removeEventListener("beforeunload", handleBeforeUnload);
+        };
+    }, [calling]);
     useEffect(() => {
         const activeCall = sessionStorage.getItem("active-call");
         if (!activeCall) return;
         const data = JSON.parse(activeCall);
-        console.log("Recovering call", data);
         targetUserRef.current = data.targetUserId;
         callTypeRef.current = data.callType;
+        isCallerRef.current = data.isCaller;
         setCallType(data.callType);
         setCalling(true);
+        setRecovering(true);
+        setCallAccepted(true);
         sessionStorage.removeItem("active-call");
         socket.emit("recover-call", {
             targetUserId: data.targetUserId,
@@ -51,12 +57,49 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
         });
     }, []);
     useEffect(() => {
-        const handleRecovering = () => {
+        const handleRecovering = async ({ callType }: any) => {
+            callTypeRef.current = callType;
             setCalling(true);
+            setRecovering(true);
+            cleanupPeer();
+            createPeerConnection(candidate => {socket.emit("ice-candidate", {
+                targetUserId: targetUserRef.current,candidate,});
+            });
+            await getLocalStream(callType);
+            addLocalTracks();
+            if (!isCallerRef.current) {
+                socket.emit("recover-ready", {
+                    targetUserId: targetUserRef.current,
+                });
+            }
+        };
+        const handleRestartWebRTC = async () => {
+            setCalling(true);
+            setRecovering(true);
+            cleanupPeer();
+            createPeerConnection(candidate => {socket.emit("ice-candidate", {
+                    targetUserId: targetUserRef.current,
+                    candidate,
+                });
+            });
+            await getLocalStream(callTypeRef.current);
+            addLocalTracks();
+            if (isCallerRef.current) {
+                const offer = await createOffer();
+                socket.emit("webrtc-offer", {
+                    targetUserId: targetUserRef.current,
+                    offer,
+                });
+            }
+            else {
+                console.log("Recovered receiver -> waiting for offer");
+            }
         };
         socket.on("call-recovering", handleRecovering);
+        socket.on("restart-webrtc", handleRestartWebRTC);
         return () => {
             socket.off("call-recovering", handleRecovering);
+            socket.off("restart-webrtc", handleRestartWebRTC);
         };
     }, []);
 
@@ -71,6 +114,7 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
             callTypeRef.current = data.callType;
         }
         const handleCallAccepted = async () => {
+            if(recovering) return;
             setCalling(true);
             setCallAccepted(true);
             const offer = await createOffer();
@@ -94,15 +138,19 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
             incomingCallRef.current = null;
         }
         const handleOffer = async({offer}:{offer:RTCSessionDescriptionInit}) => {
-            const callerId = incomingCallRef.current?.caller?._id;
+            const callerId = targetUserRef.current;
             if(!callerId) return;
-            createPeerConnection((candidate)=>{
-                socket.emit("ice-candidate",{
-                    targetUserId:callerId,candidate
+            if(!peerConnection.current){
+                createPeerConnection((candidate)=>{
+                    socket.emit("ice-candidate",{
+                        targetUserId:callerId,candidate
+                    });
                 });
-            });
-            await getLocalStream(callTypeRef.current);
-            addLocalTracks();
+            }
+            if (!localStream.current) {
+                await getLocalStream(callTypeRef.current);
+                addLocalTracks();
+            }
             const answer = await createAnswer(offer);
             socket.emit("webrtc-answer",{
                 targetUserId:callerId,answer
@@ -110,6 +158,9 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
         };
         const handleAnswer = async ({answer,}: {answer: RTCSessionDescriptionInit;}) => {
             await setRemoteAnswer(answer);
+            if(recovering){
+                setRecovering(false);
+            }
         };
         const handleIceCandidate = async ({candidate,}: {candidate: RTCIceCandidateInit;}) => {
             await addIceCandidate(candidate);
@@ -124,7 +175,6 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
         socket.on("ice-candidate", handleIceCandidate);
 
         return () => {
-            console.log("webrtc-unmounted");
             socket.off("incoming-call", handleIncomingCall);
             socket.off("call-accepted", handleCallAccepted);
             socket.off("call-rejected", handleCallRejected);
@@ -134,11 +184,40 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
             socket.off("ice-candidate", handleIceCandidate);
         };
     },[]);
-
+    
+    //refresh functions
+    const cleanupPeer = () => {
+        if (peerConnection.current) {
+            peerConnection.current.ontrack = null;
+            peerConnection.current.onicecandidate = null;
+            peerConnection.current.getSenders().forEach(sender => {
+                peerConnection.current?.removeTrack(sender);
+            });
+            peerConnection.current.close();
+            peerConnection.current = null;
+        }
+        pendingCandidates.current = [];
+    };
+    const cleanupCall = () => {
+        cleanupPeer();
+        if (localStream.current) {
+            localStream.current.getTracks().forEach(track => track.stop());
+            localStream.current = null;
+        }
+        setLocalMedia(null);
+        callTypeRef.current = "audio";
+        targetUserRef.current = null;
+        incomingCallRef.current = null;
+        setCalling(false);
+        setCallAccepted(false);
+        setRecovering(false);
+        setIncomingCall(null);
+    };
     //functions for start,end,reject,accept call
     const startCall = async(type:"audio"|"video") => {
         if(!otherUser) return;
         targetUserRef.current = otherUser._id;
+        isCallerRef.current = true;
         callTypeRef.current = type;
         setCallType(type);
         createPeerConnection((candidate)=>{
@@ -154,16 +233,20 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
             callType:type
         });
         setCalling(true);
+        setRecovering(false);
         setCallAccepted(false);
     } 
     const acceptCall = () => {
+        console.log("Role = Receiver");
         if (!incomingCallRef.current) return;
         socket.emit("accept-call", {
             callerId: incomingCallRef.current.caller._id,
         });
         targetUserRef.current = incomingCallRef.current.caller._id;
+        isCallerRef.current = false;
         setCalling(true);
         setCallAccepted(true);
+        setRecovering(false);
         setIncomingCall(null);
     };
     const rejectCall = () => {
@@ -171,27 +254,14 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
         socket.emit("reject-call",{
             callerId:incomingCallRef.current.caller._id,
         });
-        cleanup();
-        setIncomingCall(null);
-        setCalling(false);
-        setCallAccepted(false);
-        incomingCallRef.current = null;
-        targetUserRef.current = null;
+        cleanupCall();
     };
     const endCall = () => {
-        if(!targetUserRef.current){
-            cleanup(); return;
+        if (targetUserRef.current) {
+            socket.emit("end-call", {receiverId: targetUserRef.current,});
         }
-        socket.emit("end-call",{
-            receiverId:targetUserRef.current
-        });
-        cleanup();
-        setIncomingCall(null);
-        setCalling(false);
-        setCallAccepted(false);
-        targetUserRef.current = null;
-        incomingCallRef.current = null;
-    }
+        cleanupCall();
+    };
     //make google stun connection stun:stun.l.google.com:19302 with WebRTC
     const createPeerConnection = (onIceCandidate ?: (candidate:RTCIceCandidate) => void) => {
         if(peerConnection.current){
@@ -223,25 +293,27 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
             }
         };
         pc.ontrack = (event) => {
-            console.log("RemoteTrack",event.track.kind);
-            setRemoteStream(event.streams[0]);
+            const stream = event.streams[0];
+            setRemoteStream(stream);
         };
         pc.onconnectionstatechange = () => {
-            console.log("Connections",pc.connectionState)
-            if(pc.connectionState==="failed"){
-                console.log("Connections failed");
-                cleanup();
+            if (peerConnection.current !== pc) return;
+            if (pc.connectionState === "connected") {
+                setRecovering(false);
             }
-            if(pc.connectionState==="closed"){
-                console.log("Connections closed")
-                cleanup();
+            if (pc.connectionState === "failed") {
+                console.log("Peer failed");
+            }
+            if (pc.connectionState === "closed") {
+                console.log("Peer closed");
             }
             if(pc.connectionState==="disconnected"){
                 console.log("Disconnected");
             }
         };
         pc.oniceconnectionstatechange = () => {
-            console.log("ICE",pc.iceConnectionState)
+            if (peerConnection.current !== pc) return;
+            console.log("ICE",pc.iceConnectionState);
         }
         peerConnection.current = pc;
         return pc;
@@ -252,11 +324,13 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
             return localStream.current;
         }
         if(gettingMediaRef.current){
-            return;
+            while(gettingMediaRef.current){
+                await new Promise(resolve => setTimeout(resolve,100));
+            }
+            return localStream.current;
         }
         gettingMediaRef.current = true
         try{
-                console.log("Before getUserMedia");
                 const stream = await navigator.mediaDevices.getUserMedia({
                 audio:{
                     echoCancellation:true,
@@ -268,7 +342,6 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
             localStream.current = stream;
             setLocalMedia(stream);
             (window as any).testStream = stream;
-            console.log("Before getUserMedia")
             return stream;
         }
         finally{
@@ -292,10 +365,7 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
         if(!peerConnection.current){
             throw new Error("Peer not connected");
         }
-        const offer = await peerConnection.current.createOffer({
-            offerToReceiveAudio:true,
-            offerToReceiveVideo:true,
-        });
+        const offer = await peerConnection.current.createOffer();
         await peerConnection.current.setLocalDescription(offer);
         return offer;
     }
@@ -329,7 +399,8 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
     //make ice candidate to receive
     const addIceCandidate = async (candidate: RTCIceCandidateInit) => {
         if(!peerConnection.current) return;
-        if(peerConnection.current.remoteDescription){
+        if(peerConnection.current.remoteDescription &&
+            peerConnection.current.remoteDescription.type){
             await peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate));
         }
         else{
@@ -353,12 +424,14 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
         }
         pendingCandidates.current = [];
         callTypeRef.current = "audio",
-        setRemoteStream(null);
+        isCallerRef.current = false;
         setLocalMedia(null);
+        setRemoteStream(null);
+        setRecovering(false);
     }
     
     return {
         endCall,startCall,remoteStream,incomingCall,localStream:localMedia,
-        acceptCall,rejectCall,callAccepted,calling,callType
+        acceptCall,rejectCall,callAccepted,calling,callType,recovering
     };
 }

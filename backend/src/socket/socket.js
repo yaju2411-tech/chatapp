@@ -75,18 +75,21 @@ export const setupSocket = () => {
                 getIo().to(receiverSocket).emit("call-ended");
             }
         });
+        socket.on("recover-ready", ({ targetUserId,callType }) => {
+            const targetSocket = onlineUsers.get(targetUserId);
+            if (!targetSocket) return;
+            io.to(targetSocket).emit("restart-webrtc");
+        });
         socket.on("recover-call", ({ targetUserId, callType }) => {
             const targetSocket = onlineUsers.get(targetUserId);
             if (!targetSocket) return;
-            io.to(targetSocket).emit("call-recovering", {callType});
+            io.to(targetSocket).emit("call-recovering", { callType });
         });
         // ==================== WebRTC Signaling ====================
         // Caller -> Receiver
         socket.on("webrtc-offer", ({ targetUserId, offer }) => {
-            console.log("Offer sender socket:", socket.id);
+            console.log("Backend received offer");
             const targetSocket = onlineUsers.get(targetUserId);
-            console.log("Target user:", targetUserId);
-            console.log("Target socket:", targetSocket);
             if (targetSocket) {
                 io.to(targetSocket).emit("webrtc-offer", { offer });
             }

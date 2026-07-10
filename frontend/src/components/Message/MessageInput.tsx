@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Button } from "../ui/button";
-import { FileImage, SendHorizontal, Smile } from "lucide-react";
+import { FileImage, SendHorizontal, Smile, X } from "lucide-react";
 import { useSendMessage } from "@/hooks/chatHook/useMessage";
 import { socket } from "@/socket/socket";
 import EmojiPicker from "emoji-picker-react";
@@ -15,10 +15,11 @@ interface Props{
     conversationId:string;
     currentUser:any;
     receiver:any;
-    onCall:(type:"audio"|"video")=>void
+    onCall:(type:"audio"|"video")=>void;
+    reply:any;clearReply:any;
 }
 
-export default function MessageInput({conversationId,currentUser,receiver,onCall}:Props){
+export default function MessageInput({conversationId,currentUser,receiver,onCall,reply,clearReply}:Props){
     const [text,setText]=useState("");
     const sendMessageMutation = useSendMessage();
     const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -43,14 +44,43 @@ export default function MessageInput({conversationId,currentUser,receiver,onCall
     const handleSend = () => {
         if (!text.trim()) return;
         socket.emit("stop-typing", conversationId);
-        sendMessageMutation.mutate({conversationId,text});
-        setPicker(null); setText("");
+        sendMessageMutation.mutate({
+            conversationId,text,replyTo: reply?._id,
+        },{
+            onSuccess: () => {
+                clearReply();setText("");setPicker(null);
+            }
+        });
     };
-    const handleFileUpload = (file: File) => {
-        uploadMutation.mutate({conversationId,file});
+   const handleFileUpload = (file: File) => {
+        uploadMutation.mutate({conversationId,file,},{
+            onSuccess: (data) => {
+                sendMessageMutation.mutate({
+                    conversationId,replyTo: reply?._id,image: data.image,
+                    video: data.video,audio: data.audio,file: data.file,
+                    messageType: data.messageType,
+                });
+            clearReply();
+            },
+        });
     };
-
-    return(
+    return(<>
+        {reply && (
+            <div className="flex justify-between items-center rounded-md bg-zinc-800 p-2 mb-2">
+                <div>
+                    <p className="text-xs text-green-400"> Replying to { reply.sender?.name ?? "User" } </p>
+                    <p className="text-sm text-white truncate">
+                        {reply.messageType==="text" && reply.text}
+                        {reply.messageType==="image" && "📷 Photo"}
+                        {reply.messageType==="video" && "🎥 Video"}
+                        {reply.messageType==="audio" && "🎵 Audio"}
+                        {reply.messageType==="gif" && "😂 GIF"}
+                        {reply.messageType==="file" && "📄 Document"}
+                    </p>
+                </div>
+                <Button size="icon" variant="ghost" onClick={clearReply}><X/></Button>
+            </div>
+        )}
         <div className="relative flex items-end rounded-2xl bg-zinc-900/95 border border-zinc-700 px-3 py-2 shadow-lg backdrop-blur-md text-white">
             <SendingOption onFileSelect={handleFileUpload} receiver={receiver} currentUser={currentUser} onCall={onCall}/>
             <Button variant="ghost" size="icon"
@@ -83,10 +113,11 @@ export default function MessageInput({conversationId,currentUser,receiver,onCall
                                 className="rounded-lg cursor-pointer hover:scale-105 transition"
                                 onClick={() => {
                                     sendMessageMutation.mutate({
-                                        conversationId,
-                                        gifUrl: gif.gifUrl,
-                                        messageType: "gif",
-                                    });
+                                        conversationId,gifUrl: gif.gifUrl,messageType: "gif",replyTo: reply?._id,
+                                    },{
+                                        onSuccess: () => {
+                                            clearReply();setPicker(null);setSearch("");
+                                        },});
                                 setPicker(null); setSearch("");
                             }}/>
                         ))}
@@ -97,5 +128,5 @@ export default function MessageInput({conversationId,currentUser,receiver,onCall
                 <SendHorizontal/>
             </Button>
         </div>
-    );
+    </>);
 }
