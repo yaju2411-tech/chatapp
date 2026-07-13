@@ -6,21 +6,27 @@ import { onlineUsers } from "../../socket/socket.js";
 
 export const markMessageSeen = async (req,res) => {
   try{
-    await Message.updateMany(
-      {
-        conversation:req.params.conversationId,
-        sender:{ $ne:req.user.id },
-        seenBy:{ $ne:req.user.id }
-      },
-      {
-        $addToSet:{
-          seenBy:req.user.id
+      await Message.updateMany(
+        {
+            conversation: req.params.conversationId,
+            sender: { $ne: req.user.id },
+            seenBy: { $ne: req.user.id }
+        },
+        {
+            $addToSet: {
+                seenBy: req.user.id
+            },
+            $push: {
+                lastSeenBy: {
+                    user: req.user.id,
+                    seenAt: new Date()
+                }
+            }
         }
-      }
     );
     await Conversation.updateOne({
-        _id:req.params.conversationId,
-        "unreadCounts.user":req.user.id
+      _id:req.params.conversationId,
+      "unreadCounts.user":req.user.id
     },
     {
         $set:{"unreadCounts.$.count":0}

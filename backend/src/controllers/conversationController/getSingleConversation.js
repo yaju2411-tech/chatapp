@@ -7,6 +7,13 @@ export const getSingleConversation = async(req,res)=>{
         ).populate(
             "members",
             "name avatar email isOnline lastSeen"
+        ).populate(
+            "admins",
+            "name avatar isOnline lastSeen"
+        )
+        .populate(
+            "createdBy",
+            "name avatar isOnline lastSeen"
         );
         if(!conversation){
             return res.status(404).json({

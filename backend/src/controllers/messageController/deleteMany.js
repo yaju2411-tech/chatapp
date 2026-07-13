@@ -5,7 +5,8 @@ export const deleteManyMessages = async (req, res) => {
   try {
     const { conversationId, messageIds } = req.body;
     const messages = await Message.find({
-      _id: { $in: messageIds }
+      _id: { $in: messageIds },
+      conversation: conversationId
     });
 
     const ids = messages.map((m) => m._id);

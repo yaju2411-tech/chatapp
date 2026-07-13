@@ -17,6 +17,9 @@ export const deleteMessage = async (req, res) => {
         message.audio = "";
         message.file = "";
         await message.save();
+        getIo().to(message.conversation.toString()).emit("message-deleted", {
+            messageId: message._id
+        });
         res.status(200).json({
             success: true,
             message: "Message deleted"

@@ -109,9 +109,6 @@ export const ConversationMiddlware = async (req, res, next) => {
         req.conversation = conversation;
         next();
     } catch (err) {
-        console.error("ConversationMiddlware Error Stack:", err.stack);
-        console.log("ConversationMiddlware req.user:", req.user);
-        console.log("ConversationMiddlware req.params:", req.params);
         res.status(500).json({
             success: false,
             message: err.message

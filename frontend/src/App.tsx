@@ -10,6 +10,7 @@ import { ForgotPassword } from './page/ForgotPassword';
 import AdminDashboardPage from './page/AdminDashboard';
 import { AdminRoute } from './components/adminComponent/AdminProtectedRoute';
 import { SuperAdminRoute } from './components/adminComponent/SuperAdminRoute';
+import { JoinGroup } from './page/JoinGroup';
 
 function App() {
   return (
@@ -36,6 +37,11 @@ function App() {
             <AdminDashboardPage /> 
           </SuperAdminRoute>
         }/>
+        <Route path="/group/join/:inviteCode" element={
+          <ProtectedRoute>
+            <JoinGroup />
+          </ProtectedRoute>
+        } />
         <Route path='/friends'/>
       </Routes>
     </>

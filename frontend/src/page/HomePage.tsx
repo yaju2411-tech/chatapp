@@ -14,8 +14,9 @@ import { useProfile } from "@/hooks/authHook/useProfileHook";
 import { useDeleteConversation, useSingleConversation } from "@/hooks/chatHook/useConversation";
 import { useClearChat, useDeleteManyMessages, useMarkMessageSeen } from "@/hooks/chatHook/useMessage";
 import { socket } from "@/socket/socket";
-import { ArrowDown, ArrowLeft, ArrowUp, Command } from "lucide-react";
-import React, { useRef, useState,useEffect } from "react";
+import { ArrowDown, ArrowLeft, ArrowUp, Command, Users } from "lucide-react";
+import React, { useRef, useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { RemoteAudio } from "@/components/call/RemoteAudio";
 import { VideoCall } from "@/components/call/VideoCall";
 
@@ -42,6 +43,18 @@ export default function Page() {
   callAccepted,calling,callType,localStream,recovering} = useWebRTC({socket,currentUser: user,otherUser,});
   const callUser = incomingCall?.caller || otherUser;
   const [reply,setReply] = useState<any>(null);
+  
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryChatId = searchParams.get("chatId");
+
+  useEffect(() => {
+    if (queryChatId) {
+      setSelectedchat(queryChatId);
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete("chatId");
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [queryChatId, searchParams, setSearchParams]);
     
   useEffect(() => {
     if(user){
@@ -126,20 +139,50 @@ export default function Page() {
           <header className="sticky flex shrink-0 items-center gap-2 border-b p-4 bg-black h-16">
             <Avatar className="h-8 w-8 rounded-lg">
               <AvatarImage
-                src={ selectedchat && otherUser?.avatar }/>
-              <AvatarFallback className="rounded-lg">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                  <Command className="size-5" />
-                </div>
+                src={
+                  selectedchat
+                    ? conversationData?.conversation?.isGroup
+                      ? conversationData?.conversation?.groupAvatar
+                      : otherUser?.avatar
+                    : undefined
+                }
+              />
+              <AvatarFallback className="rounded-lg bg-zinc-800 text-zinc-300">
+                {conversationData?.conversation?.isGroup ? (
+                  <Users className="size-4" />
+                ) : (
+                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                    <Command className="size-5" />
+                  </div>
+                )}
               </AvatarFallback>
             </Avatar>
             <div className="grid flex-1 text-left text-sm text-white">
               <span className="truncate font-medium">
-              { selectedchat ? otherUser?.name : <p>Chat App</p>}
+                {selectedchat ? (
+                  conversationData?.conversation?.isGroup ? (
+                    conversationData?.conversation?.groupName
+                  ) : (
+                    otherUser?.name
+                  )
+                ) : (
+                  "Chat App"
+                )}
               </span>
-              <span className="truncate text-xs">
-              { isOnline ? "Online" : otherUser?.lastSeen ? 
-                `Last seen ${new Date(otherUser.lastSeen).toLocaleString()}` : "Offline"}
+              <span className="truncate text-xs text-zinc-400">
+                {selectedchat ? (
+                  conversationData?.conversation?.isGroup ? (
+                    `${conversationData?.conversation?.members?.length || 0} members`
+                  ) : isOnline ? (
+                    "Online"
+                  ) : otherUser?.lastSeen ? (
+                    `Last seen ${new Date(otherUser.lastSeen).toLocaleString()}`
+                  ) : (
+                    "Offline"
+                  )
+                ) : (
+                  ""
+                )}
               </span>
             </div>
             <div className="flex items-center gap-2">

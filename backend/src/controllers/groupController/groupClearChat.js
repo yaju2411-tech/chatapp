@@ -1,14 +1,13 @@
 import { Message } from "../../models/Message.js";
-import { Conversation } from "../../models/Conversation.js";
 import { getIo } from "../../socket/socketServer.js";
 
-export const clearChat = async (req, res) => {
+export const clearGroupChat = async (req, res) => {
     try {
         const conversation = req.conversation;
-        if (conversation.isGroup) {
+        if (!conversation.isGroup) {
             return res.status(400).json({
                 success: false,
-                message: "Use the group clear chat endpoint for groups."
+                message: "This is not a group."
             });
         }
         await Message.deleteMany({
@@ -20,17 +19,18 @@ export const clearChat = async (req, res) => {
             unread.count = 0;
         });
         await conversation.save();
-        getIo().to(conversation._id.toString()).emit("chat-cleared", {
+        getIo().to(conversation._id.toString()).emit("group-chat-cleared", {
             conversationId: conversation._id
         });
         return res.status(200).json({
             success: true,
-            message: "Chat cleared successfully."
+            message: "Group chat cleared successfully."
         });
     } catch (err) {
+        console.error("Clear Group Chat Error:", err);
         return res.status(500).json({
             success: false,
-            message: err.message
+            message: "Failed to clear group chat."
         });
     }
 };

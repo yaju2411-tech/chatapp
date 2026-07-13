@@ -7,19 +7,18 @@ import { getIo } from "../../socket/socketServer.js";
 export const forwardMessages = async (req, res) => {
     try {
         const { conversationIds, messageIds } = req.body;
-        if(!conversationIds?.length || !messageIds?.length){
+        if (!conversationIds?.length || !messageIds?.length) {
             return res.status(400).json({
                 success: false,
                 message: "ConversationIds and MessageIds are required"
             });
         }
-
-        // Validate formats
+        // Validate IDs
         for (const cid of conversationIds) {
             if (!mongoose.Types.ObjectId.isValid(cid)) {
                 return res.status(400).json({
                     success: false,
-                    message: `Invalid conversation ID format: ${cid}`
+                    message: `Invalid conversation ID: ${cid}`
                 });
             }
         }
@@ -27,26 +26,22 @@ export const forwardMessages = async (req, res) => {
             if (!mongoose.Types.ObjectId.isValid(mid)) {
                 return res.status(400).json({
                     success: false,
-                    message: `Invalid message ID format: ${mid}`
+                    message: `Invalid message ID: ${mid}`
                 });
             }
         }
-
         // Fetch original messages
         const originalMessages = await Message.find({
             _id: { $in: messageIds }
         }).sort({ createdAt: 1 });
-
-        if (originalMessages.length === 0) {
+        if (!originalMessages.length) {
             return res.status(404).json({
                 success: false,
-                message: "No valid messages found to forward"
+                message: "No valid messages found."
             });
         }
-
         const forwardedMessages = [];
         for (const conversationId of conversationIds) {
-            // Check conversation exists
             const conversation = await Conversation.findById(conversationId);
             if (!conversation) {
                 return res.status(404).json({
@@ -54,22 +49,32 @@ export const forwardMessages = async (req, res) => {
                     message: `Conversation not found: ${conversationId}`
                 });
             }
-
-            // Verify membership
+            // User must belong to conversation
             const isMember = conversation.members.some(
                 member => member.toString() === req.user.id
             );
             if (!isMember) {
                 return res.status(403).json({
                     success: false,
-                    message: `Access denied for conversation: ${conversationId}`
+                    message: "Access denied."
                 });
             }
-
-            const receiverId = conversation.members.find(
-                member => member.toString() !== req.user.id
-            );
-
+            // Group permission check BEFORE forwarding
+            if (conversation.isGroup) {
+                const isAdmin = conversation.admins.some(
+                    admin => admin.toString() === req.user.id
+                );
+                if (
+                    conversation.groupSettings.onlyAdminsCanSendMessages &&
+                    !isAdmin
+                ) {
+                    return res.status(403).json({
+                        success: false,
+                        message: "Only admins can send messages."
+                    });
+                }
+            }
+            let lastMessage = "";
             for (const msg of originalMessages) {
                 const newMessage = await Message.create({
                     conversation: conversationId,
@@ -82,13 +87,10 @@ export const forwardMessages = async (req, res) => {
                     gifUrl: msg.gifUrl,
                     messageType: msg.messageType,
                     replyTo: null,
-                    seenBy: [req.user.id],
                     forwarded: true,
+                    seenBy: [req.user.id]
                 });
                 forwardedMessages.push(newMessage);
-
-                // Update Conversation Last Message
-                let lastMessage = "";
                 switch (msg.messageType) {
                     case "text":
                         lastMessage = msg.text;
@@ -111,43 +113,58 @@ export const forwardMessages = async (req, res) => {
                     default:
                         lastMessage = "Message";
                 }
-
-                // Increment unread count for receiver if it exists
-                if (receiverId) {
-                    const existing = conversation.unreadCounts.find(
-                        u => u.user.toString() === receiverId.toString()
-                    );
-                    if (existing) {
-                        existing.count++;
-                    } else {
-                        conversation.unreadCounts.push({
-                            user: receiverId,
-                            count: 1,
-                        });
-                    }
-                    await createNotification(req.user.id, receiverId, "new_message", "Forwarded a message");
-                }
-
-                conversation.lastMessage = lastMessage;
-                conversation.lastMessageAt = new Date();
-                await conversation.save();
-
-                // Fire socket to get instant result
                 const populatedMessage = await Message.findById(newMessage._id)
                     .populate("sender", "name avatar email")
-                    .populate({
-                        path: "replyTo",
-                        select: "text sender messageType image video audio gifUrl file"
-                    }).populate("seenBy", "name avatar");
-                getIo().to(conversationId).emit("new-message", populatedMessage);                
+                    .populate({path: "replyTo",select: "text sender messageType image video audio gifUrl file"})
+                    .populate("seenBy", "name avatar");
+                getIo().to(conversationId).emit("new-message", populatedMessage);
+            }
+            // Update unread counts ONCE
+            if (conversation.isGroup) {
+                conversation.unreadCounts.forEach(unread => {
+                    if (unread.user.toString() !== req.user.id) {
+                        unread.count += originalMessages.length;
+                    }
+                });
+            } else {
+                const receiverId = conversation.members.find(
+                    member => member.toString() !== req.user.id
+                );
+                const existing = conversation.unreadCounts.find(
+                    unread => unread.user.toString() === receiverId.toString()
+                );
+                if (existing) {
+                    existing.count += originalMessages.length;
+                } else {
+                    conversation.unreadCounts.push({
+                        user: receiverId,
+                        count: originalMessages.length
+                    });
+                }
+            }
+            conversation.lastMessage = lastMessage;
+            conversation.lastMessageAt = new Date();
+            await conversation.save();
+            // Notifications
+            if (conversation.isGroup) {
+                for (const member of conversation.members) {
+                    if (member.toString() === req.user.id) continue;
+                    await createNotification(req.user.id,member,"new_message","Forwarded a message");
+                }
+            } else {
+                const receiverId = conversation.members.find(
+                    member => member.toString() !== req.user.id
+                );
+                await createNotification(req.user.id,receiverId,"new_message","Forwarded a message");
             }
         }
         return res.status(201).json({
             success: true,
-            message: "Messages forwarded successfully",
+            message: "Messages forwarded successfully.",
             forwardedMessages
         });
     } catch (err) {
+        console.error("Forward Message Error:", err);
         return res.status(500).json({
             success: false,
             message: err.message
