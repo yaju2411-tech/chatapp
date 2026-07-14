@@ -36,9 +36,7 @@ export const CreateGroupDialog = ({ trigger }: CreateGroupDialogProps) => {
 
   const handleToggleMember = (friendId: string) => {
     setSelectedMembers((prev) =>
-      prev.includes(friendId)
-        ? prev.filter((id) => id !== friendId)
-        : [...prev, friendId]
+      prev.includes(friendId) ? prev.filter((id) => id !== friendId) : [...prev, friendId]
     );
   };
 
@@ -69,15 +67,12 @@ export const CreateGroupDialog = ({ trigger }: CreateGroupDialogProps) => {
       toast.error("Please select at least one group member", { position: "top-center" });
       return;
     }
-
     try {
       setIsUploading(true);
       let uploadedAvatarUrl = "";
-
       if (avatarFile) {
         uploadedAvatarUrl = await uploadImage(avatarFile);
       }
-
       createGroupMutation.mutate(
         {
           groupName,
@@ -121,11 +116,9 @@ export const CreateGroupDialog = ({ trigger }: CreateGroupDialogProps) => {
         <form onSubmit={handleCreate} className="flex-1 flex flex-col overflow-hidden pt-4">
           {/* Main Desktop Grid */}
           <div className="flex-1 grid grid-cols-2 gap-6 min-h-0 overflow-hidden">
-
             {/* Left Column: Group Details & Avatar File Upload */}
-            <div className="space-y-4 pr-3 flex flex-col justify-start">
+            <div className="space-y-4 px-2 flex flex-col justify-start">
               <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">Group Details</h3>
-
               <div>
                 <label className="text-xs font-semibold text-zinc-350 block mb-1">Group Name *</label>
                 <Input
@@ -202,7 +195,7 @@ export const CreateGroupDialog = ({ trigger }: CreateGroupDialogProps) => {
                 </span>
               </div>
 
-              <div className="relative mb-3 flex-shrink-0">
+              <div className="relative mb-3 mr-1 flex-shrink-0">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
                 <Input
                   placeholder="Search connections..."
@@ -269,11 +262,7 @@ export const CreateGroupDialog = ({ trigger }: CreateGroupDialogProps) => {
               disabled={groupName.trim() === "" || selectedMembers.length < 1 || createGroupMutation.isPending || isUploading}
               className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-4 h-10"
             >
-              {isUploading
-                ? "Uploading Avatar..."
-                : createGroupMutation.isPending
-                  ? "Creating..."
-                  : "Create Group"}
+              {isUploading ? "Uploading Avatar..." : createGroupMutation.isPending ? "Creating..." : "Create Group"}
             </Button>
           </div>
         </form>

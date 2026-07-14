@@ -18,7 +18,6 @@ const uploadBuffer = (buffer, folder, resource_type) => {
                 else resolve(result);
             }
         );
-
         streamifier.createReadStream(buffer).pipe(stream);
     });
 };

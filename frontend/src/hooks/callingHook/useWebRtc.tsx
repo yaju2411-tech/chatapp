@@ -14,6 +14,7 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
     const [localMedia, setLocalMedia] = useState<MediaStream | null>(null);
     const [recovering, setRecovering] = useState(false);
+    const [transitioningToGroup, setTransitioningToGroup] = useState<{ callType: "audio" | "video" } | null>(null);
     const peerConnection = useRef<RTCPeerConnection | null>(null);
     const localStream = useRef<MediaStream | null>(null);
     const callTypeRef = useRef<"audio" | "video">("audio");
@@ -130,12 +131,15 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
             setIncomingCall(null);
             incomingCallRef.current = null;
         }
-        const handleCallEnded = () => {
+        const handleCallEnded = (data?: any) => {
             cleanup();
             setCalling(false);
             setCallAccepted(false);
             setIncomingCall(null);
             incomingCallRef.current = null;
+            if (data?.transitioning) {
+                setTransitioningToGroup({ callType: data.callType || "audio" });
+            }
         }
         const handleOffer = async({offer}:{offer:RTCSessionDescriptionInit}) => {
             const callerId = targetUserRef.current;
@@ -165,6 +169,24 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
         const handleIceCandidate = async ({candidate,}: {candidate: RTCIceCandidateInit;}) => {
             await addIceCandidate(candidate);
         };
+        const handleSwitchToVideo = async () => {
+            callTypeRef.current = "video";
+            setCallType("video");
+            if (localStream.current) {
+                try {
+                    const videoStream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: 1280, height: 720 }
+                    });
+                    const videoTrack = videoStream.getVideoTracks()[0];
+                    if (videoTrack) {
+                        localStream.current.addTrack(videoTrack);
+                        peerConnection.current?.addTrack(videoTrack, localStream.current);
+                    }
+                } catch (err) {
+                    console.error("Failed to add video track on switch:", err);
+                }
+            }
+        };
 
         socket.on("incoming-call", handleIncomingCall);
         socket.on("call-accepted", handleCallAccepted);
@@ -173,6 +195,7 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
         socket.on("webrtc-offer", handleOffer);
         socket.on("webrtc-answer", handleAnswer);
         socket.on("ice-candidate", handleIceCandidate);
+        socket.on("switch-to-video-call", handleSwitchToVideo);
 
         return () => {
             socket.off("incoming-call", handleIncomingCall);
@@ -182,6 +205,7 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
             socket.off("webrtc-offer", handleOffer);
             socket.off("webrtc-answer", handleAnswer);
             socket.off("ice-candidate", handleIceCandidate);
+            socket.off("switch-to-video-call", handleSwitchToVideo);
         };
     },[]);
     
@@ -236,9 +260,13 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
         setRecovering(false);
         setCallAccepted(false);
     } 
-    const acceptCall = () => {
+    const acceptCall = (type?: "audio" | "video") => {
         console.log("Role = Receiver");
         if (!incomingCallRef.current) return;
+        if (type) {
+            callTypeRef.current = type;
+            setCallType(type);
+        }
         socket.emit("accept-call", {
             callerId: incomingCallRef.current.caller._id,
         });
@@ -256,9 +284,13 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
         });
         cleanupCall();
     };
-    const endCall = () => {
+    const endCall = (transitioning = false, transCallType?: "audio" | "video") => {
         if (targetUserRef.current) {
-            socket.emit("end-call", {receiverId: targetUserRef.current,});
+            socket.emit("end-call", {
+                receiverId: targetUserRef.current,
+                transitioning,
+                callType: transCallType
+            });
         }
         cleanupCall();
     };
@@ -429,9 +461,38 @@ export const useWebRTC = ({socket,currentUser,otherUser}:UseWebRTCProps) => {
         setRemoteStream(null);
         setRecovering(false);
     }
+
+    const switchToVideo = async () => {
+        if (!peerConnection.current || !localStream.current) return;
+        try {
+            const videoStream = await navigator.mediaDevices.getUserMedia({
+                video: { width: 1280, height: 720 }
+            });
+            const videoTrack = videoStream.getVideoTracks()[0];
+            if (videoTrack) {
+                localStream.current.addTrack(videoTrack);
+                peerConnection.current.addTrack(videoTrack, localStream.current);
+            }
+            callTypeRef.current = "video";
+            setCallType("video");
+            
+            socket.emit("switch-to-video-call", {
+                receiverId: targetUserRef.current
+            });
+
+            const offer = await createOffer();
+            socket.emit("webrtc-offer", {
+                targetUserId: targetUserRef.current,
+                offer
+            });
+        } catch (err) {
+            console.error("Failed to switch to video:", err);
+        }
+    };
     
     return {
         endCall,startCall,remoteStream,incomingCall,localStream:localMedia,
-        acceptCall,rejectCall,callAccepted,calling,callType,recovering
+        acceptCall,rejectCall,callAccepted,calling,callType,recovering,switchToVideo,
+        transitioningToGroup, setTransitioningToGroup
     };
 }

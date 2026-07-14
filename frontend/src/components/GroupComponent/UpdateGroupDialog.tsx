@@ -437,7 +437,7 @@ export const UpdateGroupDialog = ({ conversationId, trigger }: UpdateGroupDialog
                                       <MoreVertical className="h-4.5 w-4.5" />
                                     </Button>
                                   </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="bg-zinc-950 border-zinc-850 text-white">
+                                  <DropdownMenuContent align="end" className="bg-zinc-950 border-zinc-850 text-white w-[170px]">
                                     {isCreator && (
                                       <>
                                         {isMemberAdmin ? (
