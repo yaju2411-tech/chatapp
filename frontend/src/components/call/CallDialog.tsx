@@ -205,7 +205,7 @@ export default function CallDialog({
     // --- layout logic ---
     // 1-to-1 PIP variables
     const remoteUser = remoteParticipants[0];
-    const remoteStream = remoteUser ? remoteStreams.get(remoteUser._id) : null;
+    const remoteStream = (remoteUser ? remoteStreams.get(remoteUser._id) : null) ?? null;
     const isRemoteVideoActive = remoteStream && remoteStream.getVideoTracks().length > 0 && remoteStream.getVideoTracks()[0].enabled;
     const isLocalVideoActive = callType === "video" && cameraEnabled && localStream;
 
@@ -216,7 +216,7 @@ export default function CallDialog({
 
     const focusedParticipant = participants.find((p) => p._id === activeFocusId) || participants[0];
     const isFocusedSelf = focusedParticipant?._id === currentUser?._id;
-    const focusedStream = isFocusedSelf ? localStream : remoteStreams.get(focusedParticipant?._id);
+    const focusedStream = (isFocusedSelf ? localStream : remoteStreams.get(focusedParticipant?._id)) ?? null;
     const isFocusedVideoActive = isFocusedSelf
         ? (callType === "video" && cameraEnabled && focusedStream)
         : (focusedParticipant && !focusedParticipant.isVideoOff && focusedStream && focusedStream.getVideoTracks().length > 0);
@@ -423,7 +423,7 @@ export default function CallDialog({
                     <div className="w-full md:w-80 h-32 md:h-full border-t md:border-t-0 md:border-l border-zinc-850 bg-zinc-950/20 p-2 md:p-4 overflow-x-auto md:overflow-x-hidden md:overflow-y-auto flex flex-row md:flex-col gap-4 no-scrollbar shrink-0">
                         {participants.map((p) => {
                             const isSelf = p._id === currentUser?._id;
-                            const stream = isSelf ? localStream : remoteStreams.get(p._id);
+                            const stream = (isSelf ? localStream : remoteStreams.get(p._id)) ?? null;
                             const isVideoActive = isSelf
                                 ? (callType === "video" && cameraEnabled && stream)
                                 : (p && !p.isVideoOff && stream && stream.getVideoTracks().length > 0);
