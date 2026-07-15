@@ -47,146 +47,66 @@ export const setupSocket = () => {
             socket.to(message.conversation).emit("message-deleted", message);
         });
 
-        // ==================== 1-1 Call ====================
-        // Caller -> Receiver
-        socket.on("call-user", ({ receiverId, caller, callType }) => {
-            const receiverSocket = onlineUsers.get(receiverId);
-            if (receiverSocket) {
-                getIo().to(receiverSocket).emit("incoming-call", { caller, callType });
-            }
-        });
-        // Receiver accepted
-        socket.on("accept-call", ({ callerId }) => {
-            const callerSocket = onlineUsers.get(callerId);
-            if (callerSocket) {
-                getIo().to(callerSocket).emit("call-accepted");
-            }
-        });
-        // Receiver rejected
-        socket.on("reject-call", ({ callerId }) => {
-            const callerSocket = onlineUsers.get(callerId);
-            if (callerSocket) {
-                getIo().to(callerSocket).emit("call-rejected");
-            }
-        });
-        // End Call
-        socket.on("end-call", ({ receiverId, ...rest }) => {
-            const receiverSocket = onlineUsers.get(receiverId);
-            if (receiverSocket) {
-                getIo().to(receiverSocket).emit("call-ended", rest);
-            }
-        });
-        socket.on("recover-ready", ({ targetUserId, callType }) => {
-            const targetSocket = onlineUsers.get(targetUserId);
-            if (!targetSocket) return;
-            io.to(targetSocket).emit("restart-webrtc");
-        });
-        socket.on("recover-call", ({ targetUserId, callType }) => {
-            const targetSocket = onlineUsers.get(targetUserId);
-            if (!targetSocket) return;
-            io.to(targetSocket).emit("call-recovering", { callType });
-        });
-        // ====================1-1 WebRTC Signaling ====================
-        // Caller -> Receiver
-        socket.on("webrtc-offer", ({ targetUserId, offer }) => {
-            const targetSocket = onlineUsers.get(targetUserId);
-            if (targetSocket) {
-                io.to(targetSocket).emit("webrtc-offer", { offer });
-            }
-        });
-        // Receiver -> caller
-        socket.on("webrtc-answer", ({ targetUserId, answer }) => {
-            const targetSocket = onlineUsers.get(targetUserId);
-            if (targetSocket) {
-                io.to(targetSocket).emit("webrtc-answer", { answer });
-            }
-        });
-        //ice-candidate
-        socket.on("ice-candidate", ({ targetUserId, candidate }) => {
-            const targetSocket = onlineUsers.get(targetUserId);
-            if (targetSocket) {
-                io.to(targetSocket).emit("ice-candidate", { candidate, });
-            }
-        });
-        socket.on("switch-to-video-call", ({ receiverId }) => {
-            const targetSocket = onlineUsers.get(receiverId);
-            if (targetSocket) {
-                io.to(targetSocket).emit("switch-to-video-call");
-            }
-        });
-
-        //==============Group calling socket===============
-        // User starts a group call
-        socket.on("start-group-call", ({ conversationId, caller, callType }) => {
+        // ==================== Unified Call Signaling ====================
+        // Start Call: joins room and sends incoming-call to target members
+        socket.on("start-call", ({ conversationId, caller, callType, targetUserIds }) => {
             socket.join(`call-${conversationId}`);
-            io.to(conversationId).emit("group-call-started", {
-                conversationId, caller, callType,
-            });
-        });
-        // User joins existing call
-        socket.on("join-group-call", ({ conversationId, user }) => {
-            socket.join(`call-${conversationId}`);
-            io.to(`call-${conversationId}`).emit("group-user-joined", {
-                conversationId, user,
-            });
-        });
-        // User leaves call
-        socket.on("leave-group-call", ({ conversationId, user }) => {
-            socket.leave(`call-${conversationId}`);
-            io.to(`call-${conversationId}`).emit("group-user-left", {
-                conversationId, user,
-            });
-        });
-        // End call
-        socket.on("end-group-call", ({ conversationId }) => {
-            io.to(`call-${conversationId}`).emit("group-call-ended", {
-                conversationId,
-            });
-            io.to(conversationId).emit("group-call-ended", {
-                conversationId,
-            });
-        });
-        // Invite user to group call
-        socket.on("invite-to-group-call", ({ targetUserId, conversationId, caller, callType }) => {
-            const targetSocket = onlineUsers.get(targetUserId);
-            if (targetSocket) {
-                io.to(targetSocket).emit("group-call-started", {
-                    conversationId, caller, callType,
+            if (Array.isArray(targetUserIds)) {
+                targetUserIds.forEach(targetId => {
+                    const targetSocket = onlineUsers.get(targetId);
+                    if (targetSocket) {
+                        getIo().to(targetSocket).emit("incoming-call", { conversationId, caller, callType });
+                    }
                 });
             }
         });
-        //==============Group calling webrtc===============
-        // Send offer to one participant
-        socket.on("group-webrtc-offer", ({ targetUserId, senderId, sender, offer }) => {
+
+        // Join Call: joins room and notifies other active participants
+        socket.on("join-call", ({ conversationId, user }) => {
+            socket.join(`call-${conversationId}`);
+            socket.to(`call-${conversationId}`).emit("user-joined", { user });
+        });
+
+        // Leave Call: leaves room and notifies other active participants
+        socket.on("leave-call", ({ conversationId, userId }) => {
+            socket.leave(`call-${conversationId}`);
+            getIo().to(`call-${conversationId}`).emit("user-left", { userId });
+        });
+
+        // WebRTC SDP Offer forwarding
+        socket.on("webrtc-offer", ({ targetUserId, ...rest }) => {
             const targetSocket = onlineUsers.get(targetUserId);
-            if (!targetSocket) return;
-            io.to(targetSocket).emit("group-webrtc-offer", {
-                senderId, sender, offer
-            });
+            if (targetSocket) {
+                getIo().to(targetSocket).emit("webrtc-offer", rest);
+            }
         });
-        // Send answer
-        socket.on("group-webrtc-answer", ({ targetUserId, senderId, sender, answer }) => {
+
+        // WebRTC SDP Answer forwarding
+        socket.on("webrtc-answer", ({ targetUserId, ...rest }) => {
             const targetSocket = onlineUsers.get(targetUserId);
-            if (!targetSocket) return;
-            io.to(targetSocket).emit("group-webrtc-answer", {
-                senderId, sender, answer
-            });
+            if (targetSocket) {
+                getIo().to(targetSocket).emit("webrtc-answer", rest);
+            }
         });
-        // ICE Candidate
-        socket.on("group-ice-candidate", ({ targetUserId, senderId, candidate }) => {
+
+        // WebRTC ICE Candidate forwarding
+        socket.on("ice-candidate", ({ targetUserId, ...rest }) => {
             const targetSocket = onlineUsers.get(targetUserId);
-            if (!targetSocket) return;
-            io.to(targetSocket).emit("group-ice-candidate", {
-                senderId, candidate
-            });
+            if (targetSocket) {
+                getIo().to(targetSocket).emit("ice-candidate", rest);
+            }
         });
-        // Group call controls propagation
-        socket.on("group-toggle-mute", ({ conversationId, userId, isMuted }) => {
-            io.to(`call-${conversationId}`).emit("group-toggle-mute", { userId, isMuted });
+
+        // Toggle Microphone propagation
+        socket.on("toggle-mic", ({ conversationId, userId, isMuted }) => {
+            getIo().to(`call-${conversationId}`).emit("user-toggle-mic", { userId, isMuted });
         });
-        socket.on("group-toggle-video", ({ conversationId, userId, isVideoOff }) => {
-            io.to(`call-${conversationId}`).emit("group-toggle-video", { userId, isVideoOff });
+
+        // Toggle Camera propagation
+        socket.on("toggle-camera", ({ conversationId, userId, isVideoOff }) => {
+            getIo().to(`call-${conversationId}`).emit("user-toggle-camera", { userId, isVideoOff });
         });
+
 
         //disconnect
         socket.on("disconnect", async () => {

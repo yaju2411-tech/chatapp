@@ -1,4 +1,4 @@
-import { CameraIcon, Music, Notebook, PhoneCall, PhoneCallIcon, Plus, Video, WindIcon } from "lucide-react";
+import { CameraIcon, Music, Notebook, PhoneCall, Plus, Video, WindIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import { useRef, useState } from "react";
@@ -49,15 +49,9 @@ export const SendingOption = ({onFileSelect,onCall}:Props) => {
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant={"ghost"} size={"icon"}><PhoneCall/></Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="flex flex-col">
-                    <DropdownMenuItem onClick={()=>onCall("audio")}><PhoneCallIcon/>Audio Call</DropdownMenuItem>
-                    <DropdownMenuItem onClick={()=>onCall("video")}><Video/>Video Call</DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
+            <Button variant={"ghost"} size={"icon"} onClick={() => onCall("audio")}>
+                <PhoneCall/>
+            </Button>
         </div>
         <CameraDialog open={openCamera} onClose={() => setOpenCamera(false)} onCapture={(file) => {onFileSelect(file);}}/>
     </>);
