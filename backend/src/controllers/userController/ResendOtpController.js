@@ -1,5 +1,5 @@
 import { User } from "../../models/User.js";
-import { transporter } from "../../config/nodemailer.js";
+import { transporter, getMailSender } from "../../config/nodemailer.js";
 
 export const resendOtp = async (req, res) => {
     try {
@@ -21,7 +21,7 @@ export const resendOtp = async (req, res) => {
 
         await user.save();
         await transporter.sendMail({
-            from: `"Chat App" <${process.env.EMAIL_USER}>`,
+            from: `"Chat App" <${getMailSender()}>`,
             to: email,
             subject: "Resend OTP",
             html: `<h1>${otp}</h1>`,
