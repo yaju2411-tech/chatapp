@@ -16,8 +16,11 @@ import { ArrowDown, ArrowLeft, ArrowUp, Command, Users } from "lucide-react";
 import React, { useRef, useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useOneToOneCall } from "@/hooks/callHook/useOneToOneCall";
+import { useGroupCall } from "@/hooks/callHook/useGroupCall";
 import IncomingCallDialog from "@/components/call/IncomingCall";
 import CallDialog from "@/components/call/CallDialog";
+import GroupIncomingCall from "@/components/call/GroupIncomingCall";
+import GroupCallDialog from "@/components/call/GroupCallDialog";
 
 export default function Page() {
   const { data } = useProfile();
@@ -62,6 +65,44 @@ export default function Page() {
     otherUser,
     conversationId: selectedchat,
   });
+
+  const {
+    calling: groupCalling,
+    callAccepted: groupCallAccepted,
+    callType: groupCallType,
+    incomingCall: groupIncomingCall,
+    localStream: groupLocalStream,
+    remoteStreams: groupRemoteStreams,
+    participants: groupParticipants,
+    micEnabled: groupMicEnabled,
+    cameraEnabled: groupCameraEnabled,
+    startGroupCall,
+    acceptGroupCall,
+    rejectGroupCall,
+    endGroupCall,
+    toggleLocalMic: groupToggleLocalMic,
+    toggleLocalCamera: groupToggleLocalCamera,
+  } = useGroupCall({
+    socket,
+    currentUser: user,
+    groupMembers: conversationData?.conversation?.members || [],
+    conversationId: selectedchat,
+  });
+
+  const handleCallInitiated = (type: "audio" | "video") => {
+    if (conversationData?.conversation?.isGroup) {
+      startGroupCall(type);
+    } else {
+      startCall(type);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      endCall();
+      endGroupCall();
+    };
+  }, [selectedchat]);
 
   const { data: friendsData } = useGetFriends("");
 
@@ -262,7 +303,7 @@ export default function Page() {
               </div>
               <div className="sticky shrink-0 border-t p-4 bg-black">
                 <MessageInput reply={reply} clearReply={() => setReply(null)}
-                  conversationId={selectedchat} currentUser={user} receiver={otherUser} onCall={startCall} />
+                   conversationId={selectedchat} currentUser={user} receiver={otherUser} onCall={handleCallInitiated} />
               </div>
             </>) : (
               <div className="flex flex-1 flex-col items-center justify-center" style={{
@@ -304,6 +345,41 @@ export default function Page() {
       onToggleMic={toggleLocalMic}
       onToggleCamera={toggleLocalCamera}
       accepted={callAccepted}
+    />
+
+    {/* Group Incoming Call Dialog */}
+    <GroupIncomingCall
+      open={!!groupIncomingCall}
+      caller={groupIncomingCall?.caller}
+      groupName={conversationData?.conversation?.groupName || "Group Call"}
+      callType={groupIncomingCall?.callType || "audio"}
+      onAccept={acceptGroupCall}
+      onReject={rejectGroupCall}
+    />
+
+    {/* Group Call Dialog */}
+    <GroupCallDialog
+      open={groupCalling}
+      callType={groupCallType || "audio"}
+      localStream={groupLocalStream}
+      remoteStreams={groupRemoteStreams}
+      participants={groupParticipants}
+      micEnabled={groupMicEnabled}
+      cameraEnabled={groupCameraEnabled}
+      currentUser={user}
+      friends={friendsData?.friends || []}
+      onInviteUser={(targetUserId) => {
+        socket.emit("start-call", {
+          conversationId: selectedchat,
+          caller: user,
+          callType: groupCallType || "audio",
+          targetUserIds: [targetUserId],
+        });
+      }}
+      onLeave={endGroupCall}
+      onToggleMic={groupToggleLocalMic}
+      onToggleCamera={groupToggleLocalCamera}
+      accepted={groupCallAccepted}
     />
   </>);
 }
