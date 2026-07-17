@@ -3,29 +3,31 @@ import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
 import { Phone, PhoneOff, Video } from "lucide-react";
 
-interface IncomingCallProps {
+interface GroupIncomingCallProps {
     open: boolean;
     caller?: {
         name: string;
         avatar?: string;
     };
+    groupName: string;
     callType: "audio" | "video";
     onAccept: () => void;
     onReject: () => void;
 }
 
-export default function IncomingCall({
+export default function GroupIncomingCall({
     open,
     caller,
+    groupName,
     callType,
     onAccept,
     onReject,
-}: IncomingCallProps) {
+}: GroupIncomingCallProps) {
     if (!open || !caller) return null;
     return (
         <Dialog open={open} onOpenChange={(val) => { if (!val) onReject(); }}>
             <DialogContent aria-describedby={undefined} className="sm:max-w-[425px] bg-zinc-900 border border-zinc-800 text-white rounded-2xl p-6 flex flex-col items-center gap-6 shadow-2xl">
-                <DialogTitle className="sr-only">Incoming Call</DialogTitle>
+                <DialogTitle className="sr-only">Incoming Group Call</DialogTitle>
                 <div className="relative mt-4">
                     {/* Pulsing ring animation */}
                     <div className="absolute inset-0 rounded-full bg-green-500/20 animate-ping" />
@@ -39,8 +41,11 @@ export default function IncomingCall({
 
                 <div className="text-center flex flex-col gap-1">
                     <h3 className="text-xl font-bold tracking-tight text-white">{caller.name}</h3>
-                    <p className="text-sm text-zinc-400 font-medium">
-                        Incoming {callType === "video" ? "Video" : "Voice"} Call...
+                    <p className="text-sm text-zinc-400 font-semibold">
+                        Calling you in <span className="text-green-400">{groupName}</span>
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-1">
+                        Group {callType === "video" ? "Video" : "Voice"} Call...
                     </p>
                 </div>
 
@@ -48,7 +53,8 @@ export default function IncomingCall({
                     {/* Reject Button */}
                     <Button
                         onClick={onReject}
-                        className="h-14 w-14 rounded-full bg-red-600 hover:bg-red-750 text-white flex items-center justify-center p-0 shadow-lg shadow-red-650/30 transition-all hover:scale-105"
+                        aria-label="Reject group call"
+                        className="h-14 w-14 rounded-full bg-red-600 hover:bg-red-750 text-white flex items-center justify-center p-0 shadow-lg shadow-red-655/30 transition-all hover:scale-105"
                     >
                         <PhoneOff className="h-6 w-6" />
                     </Button>
@@ -56,7 +62,8 @@ export default function IncomingCall({
                     {/* Accept Button */}
                     <Button
                         onClick={onAccept}
-                        className="h-14 w-14 rounded-full bg-green-600 hover:bg-green-750 text-white flex items-center justify-center p-0 shadow-lg shadow-green-650/30 transition-all hover:scale-105"
+                        aria-label="Accept group call"
+                        className="h-14 w-14 rounded-full bg-green-600 hover:bg-green-750 text-white flex items-center justify-center p-0 shadow-lg shadow-green-655/30 transition-all hover:scale-105"
                     >
                         {callType === "video" ? <Video className="h-6 w-6" /> : <Phone className="h-6 w-6" />}
                     </Button>

@@ -26,6 +26,7 @@ interface CallDialogProps {
         avatar?: string;
     } | null;
     friends: any[];
+    busyUsers: string[];
     onInviteUser: (targetUserId: string, targetUser: any) => void;
     onLeave: () => void;
     onToggleMic: () => void;
@@ -120,10 +121,10 @@ const AudioPulseAvatar = ({
         };
     }, [stream, isMuted]);
 
-    const avatarSizeClass = size === "small" ? "h-12 w-12" : "h-24 w-24";
-    const fontClass = size === "small" ? "text-sm" : "text-3xl";
-    const ringsOffsetClass = size === "small" ? 1.35 : 1.55;
-    const ringsInnerClass = size === "small" ? 1.15 : 1.25;
+    const avatarSizeClass = size === "small" ? "h-12 w-12" : "h-40 w-40 md:h-52 md:w-52";
+    const fontClass = size === "small" ? "text-sm" : "text-5xl md:text-7xl";
+    const ringsOffsetClass = size === "small" ? 1.35 : 1.35;
+    const ringsInnerClass = size === "small" ? 1.15 : 1.15;
 
     return (
         <div className="relative">
@@ -159,6 +160,7 @@ export default function CallDialog({
     cameraEnabled,
     currentUser,
     friends,
+    busyUsers,
     onInviteUser,
     onLeave,
     onToggleMic,
@@ -579,6 +581,10 @@ export default function CallDialog({
                                                 <span className="text-[10px] bg-zinc-800 text-zinc-400 px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
                                                     <Check className="h-3 w-3 text-zinc-500" />
                                                     <span>Active</span>
+                                                </span>
+                                            ) : busyUsers.includes(f._id) ? (
+                                                <span className="text-[10px] bg-red-700/80 text-white px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
+                                                    <span>Busy</span>
                                                 </span>
                                             ) : (
                                                 <Button

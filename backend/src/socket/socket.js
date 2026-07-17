@@ -1,16 +1,28 @@
 import { User } from "../models/User.js";
+import { Conversation } from "../models/Conversation.js";
 import { getIo } from "./socketServer.js";
+import { sendOfflineCallEmail } from "../service/mailService.js";
 
 export const onlineUsers = new Map();
+// Track which users are currently in an active call
+const usersInCall = new Set();
+// Track which users are currently ringing
+const ringingUsers = new Set();
+
+const broadcastBusyUsers = () => {
+    getIo().emit("busy-users-update", Array.from(usersInCall));
+};
 
 export const setupSocket = () => {
     const io = getIo();
     const reconnectTimers = new Map();
+    const disconnectTimeouts = new Map();
     io.on("connection", (socket) => {
         console.log("Socket connected:", socket.id);
         //setup
         socket.on("setup", async (userId) => {
             onlineUsers.set(userId, socket.id);
+            socket.userId = userId;
             if (reconnectTimers.has(userId)) {
                 clearTimeout(reconnectTimers.get(userId));
                 reconnectTimers.delete(userId);
@@ -47,30 +59,86 @@ export const setupSocket = () => {
             socket.to(message.conversation).emit("message-deleted", message);
         });
 
-        // ==================== Unified Call Signaling ====================
-        // Start Call: joins room and sends incoming-call to target members
-        socket.on("start-call", ({ conversationId, caller, callType, targetUserIds }) => {
+        // ==================== 1-to-1 Call Signaling ====================
+        // Get busy users list
+        socket.on("get-busy-users", () => {
+            socket.emit("busy-users-update", Array.from(usersInCall));
+        });
+
+        // Start Call: checks busy, joins room and sends incoming-call to target members
+        socket.on("start-call", async ({ conversationId, caller, callType, targetUserIds }) => {
+            const actualUserId = socket.userId;
+            if (!actualUserId) return;
+            const conversation = await Conversation.findById(conversationId);
+            if (!conversation || !conversation.participants.includes(actualUserId)) return;
+            
+            const validTargets = targetUserIds.filter(id => conversation.participants.includes(id));
+            
+            // Check if any target is busy before doing anything
+            if (validTargets.some(id => usersInCall.has(id) || ringingUsers.has(id))) {
+                socket.emit("user-busy", { targetUserIds: validTargets, conversationId, callType });
+                return;
+            }
+            
+            ringingUsers.add(actualUserId);
+            validTargets.forEach(id => ringingUsers.add(id));
+            
+            usersInCall.add(actualUserId);
             socket.join(`call-${conversationId}`);
+            validTargets.forEach(targetId => {
+                const targetSocket = onlineUsers.get(targetId);
+                if (targetSocket) {
+                    getIo().to(targetSocket).emit("incoming-call", { conversationId, caller, callType });
+                }
+            });
+            broadcastBusyUsers();
+        });
+
+        // Join Call: marks user busy, joins room, notifies other active participants
+        socket.on("join-call", ({ conversationId, user }) => {
+            if (disconnectTimeouts.has(user._id)) {
+                clearTimeout(disconnectTimeouts.get(user._id));
+                disconnectTimeouts.delete(user._id);
+            }
+            ringingUsers.delete(user._id);
+            ringingUsers.delete(socket.userId);
+            usersInCall.add(user._id);
+            socket.join(`call-${conversationId}`);
+            socket.to(`call-${conversationId}`).emit("user-joined", { user });
+            broadcastBusyUsers();
+        });
+
+        // Leave Call: unmarks user busy, leaves room, notifies other active participants
+        socket.on("leave-call", ({ conversationId, userId }) => {
+            usersInCall.delete(userId);
+            socket.leave(`call-${conversationId}`);
+            getIo().to(`call-${conversationId}`).emit("user-left", { userId });
+            broadcastBusyUsers();
+        });
+
+        // Cancel Call: notifies target users to close their incoming call dialogs
+        socket.on("cancel-call", ({ targetUserIds, conversationId }) => {
+            const actualUserId = socket.userId;
+            if (actualUserId) ringingUsers.delete(actualUserId);
+            
             if (Array.isArray(targetUserIds)) {
                 targetUserIds.forEach(targetId => {
+                    ringingUsers.delete(targetId);
                     const targetSocket = onlineUsers.get(targetId);
                     if (targetSocket) {
-                        getIo().to(targetSocket).emit("incoming-call", { conversationId, caller, callType });
+                        getIo().to(targetSocket).emit("call-cancelled", { conversationId });
                     }
                 });
             }
         });
 
-        // Join Call: joins room and notifies other active participants
-        socket.on("join-call", ({ conversationId, user }) => {
-            socket.join(`call-${conversationId}`);
-            socket.to(`call-${conversationId}`).emit("user-joined", { user });
-        });
-
-        // Leave Call: leaves room and notifies other active participants
-        socket.on("leave-call", ({ conversationId, userId }) => {
-            socket.leave(`call-${conversationId}`);
-            getIo().to(`call-${conversationId}`).emit("user-left", { userId });
+        // Validate Call: checks if a call room is still active
+        socket.on("validate-call", ({ conversationId }, callback) => {
+            const room = getIo().sockets.adapter.rooms.get(`call-${conversationId}`);
+            const exists = room && room.size > 0;
+            if (typeof callback === "function") {
+                callback(!!exists);
+            }
         });
 
         // WebRTC SDP Offer forwarding
@@ -107,6 +175,132 @@ export const setupSocket = () => {
             getIo().to(`call-${conversationId}`).emit("user-toggle-camera", { userId, isVideoOff });
         });
 
+        // ==================== Group Call Signaling ====================
+        // Start Group Call: joins room, alerts online group members via socket, sends email to offline ones
+        socket.on("start-group-call", async ({ conversationId, caller, callType, targetUserIds }) => {
+            const actualUserId = socket.userId;
+            if (!actualUserId) return;
+            const conversation = await Conversation.findById(conversationId);
+            if (!conversation || !conversation.participants.includes(actualUserId)) return;
+            
+            const validTargets = targetUserIds.filter(id => conversation.participants.includes(id));
+            
+            ringingUsers.add(actualUserId);
+            usersInCall.add(actualUserId);
+            socket.join(`call-${conversationId}`);
+            
+            for (const targetId of validTargets) {
+                const targetSocket = onlineUsers.get(targetId);
+                if (targetSocket) {
+                    // If target is busy, notify caller instead of ringing them
+                    if (usersInCall.has(targetId) || ringingUsers.has(targetId)) {
+                        socket.emit("user-busy", { targetUserIds: [targetId], conversationId, callType: "group" });
+                    } else {
+                        ringingUsers.add(targetId);
+                        getIo().to(targetSocket).emit("group-incoming-call", { conversationId, caller, callType, groupName: conversation.groupName });
+                    }
+                } else {
+                    // User is offline! Send email notification of the group call using mailService
+                    await sendOfflineCallEmail({ targetId, caller, conversationId });
+                }
+            }
+            broadcastBusyUsers();
+        });
+
+        // Join Group Call: marks user busy, joins room, notifies other active participants
+        socket.on("join-group-call", ({ conversationId, user }) => {
+            if (disconnectTimeouts.has(user._id)) {
+                clearTimeout(disconnectTimeouts.get(user._id));
+                disconnectTimeouts.delete(user._id);
+            }
+            ringingUsers.delete(user._id);
+            ringingUsers.delete(socket.userId);
+            usersInCall.add(user._id);
+            socket.join(`call-${conversationId}`);
+            socket.to(`call-${conversationId}`).emit("group-user-joined", { user });
+            broadcastBusyUsers();
+        });
+
+        // Invite a single user to an existing group call (does NOT re-notify all members)
+        socket.on("invite-to-group-call", async ({ conversationId, caller, callType, targetUserId }) => {
+            const actualUserId = socket.userId;
+            if (!actualUserId) return;
+            const conversation = await Conversation.findById(conversationId);
+            if (!conversation || !conversation.participants.includes(actualUserId)) return;
+            if (!conversation.participants.includes(targetUserId)) return;
+
+            if (usersInCall.has(targetUserId) || ringingUsers.has(targetUserId)) {
+                socket.emit("user-busy", { targetUserIds: [targetUserId], conversationId, callType: "group" });
+                return;
+            }
+            
+            ringingUsers.add(targetUserId);
+            const targetSocket = onlineUsers.get(targetUserId);
+            if (targetSocket) {
+                getIo().to(targetSocket).emit("group-incoming-call", { conversationId, caller, callType, groupName: conversation.groupName });
+            } else {
+                await sendOfflineCallEmail({ targetId: targetUserId, caller, conversationId });
+            }
+        });
+
+        // Leave Group Call: unmarks user busy, leaves room, notifies other active participants
+        socket.on("leave-group-call", ({ conversationId, userId }) => {
+            usersInCall.delete(userId);
+            socket.leave(`call-${conversationId}`);
+            getIo().to(`call-${conversationId}`).emit("group-user-left", { userId });
+            broadcastBusyUsers();
+        });
+
+        // Cancel Group Call: notifies target users to close their incoming call dialogs
+        socket.on("cancel-group-call", ({ targetUserIds, conversationId }) => {
+            const actualUserId = socket.userId;
+            if (actualUserId) ringingUsers.delete(actualUserId);
+
+            if (Array.isArray(targetUserIds)) {
+                targetUserIds.forEach(targetId => {
+                    ringingUsers.delete(targetId);
+                    const targetSocket = onlineUsers.get(targetId);
+                    if (targetSocket) {
+                        getIo().to(targetSocket).emit("group-call-cancelled", { conversationId });
+                    }
+                });
+            }
+        });
+
+        // Group WebRTC SDP Offer forwarding
+        socket.on("group-webrtc-offer", ({ targetUserId, ...rest }) => {
+            const targetSocket = onlineUsers.get(targetUserId);
+            if (targetSocket) {
+                getIo().to(targetSocket).emit("group-webrtc-offer", rest);
+            }
+        });
+
+        // Group WebRTC SDP Answer forwarding
+        socket.on("group-webrtc-answer", ({ targetUserId, ...rest }) => {
+            const targetSocket = onlineUsers.get(targetUserId);
+            if (targetSocket) {
+                getIo().to(targetSocket).emit("group-webrtc-answer", rest);
+            }
+        });
+
+        // Group WebRTC ICE Candidate forwarding
+        socket.on("group-ice-candidate", ({ targetUserId, ...rest }) => {
+            const targetSocket = onlineUsers.get(targetUserId);
+            if (targetSocket) {
+                getIo().to(targetSocket).emit("group-ice-candidate", rest);
+            }
+        });
+
+        // Toggle Group Microphone propagation
+        socket.on("toggle-group-mic", ({ conversationId, userId, isMuted }) => {
+            getIo().to(`call-${conversationId}`).emit("group-user-toggle-mic", { userId, isMuted });
+        });
+
+        // Toggle Group Camera propagation
+        socket.on("toggle-group-camera", ({ conversationId, userId, isVideoOff }) => {
+            getIo().to(`call-${conversationId}`).emit("group-user-toggle-camera", { userId, isVideoOff });
+        });
+
 
         //disconnect
         socket.on("disconnect", async () => {
@@ -121,6 +315,15 @@ export const setupSocket = () => {
                     });
                     break;
                 }
+            }
+            if (disconnectedUserId) {
+                // 15-second grace period before clearing them from the busy list
+                const timeoutId = setTimeout(() => {
+                    usersInCall.delete(disconnectedUserId);
+                    broadcastBusyUsers();
+                    disconnectTimeouts.delete(disconnectedUserId);
+                }, 15000);
+                disconnectTimeouts.set(disconnectedUserId, timeoutId);
             }
             io.emit("online-users", Array.from(onlineUsers.keys()));
             console.log("Disconnected:", socket.id);
