@@ -358,7 +358,7 @@ export default function Page() {
     <GroupIncomingCall
       open={!!groupIncomingCall}
       caller={groupIncomingCall?.caller}
-      groupName={conversationData?.conversation?.groupName || "Group Call"}
+      groupName={groupIncomingCall?.groupName || "Group Call"}
       callType={groupIncomingCall?.callType || "audio"}
       onAccept={acceptGroupCall}
       onReject={rejectGroupCall}

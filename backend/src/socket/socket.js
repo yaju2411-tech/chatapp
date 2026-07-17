@@ -1,10 +1,13 @@
 import { User } from "../models/User.js";
+import { Conversation } from "../models/Conversation.js";
 import { getIo } from "./socketServer.js";
 import { sendOfflineCallEmail } from "../service/mailService.js";
 
 export const onlineUsers = new Map();
 // Track which users are currently in an active call
 const usersInCall = new Set();
+// Track which users are currently ringing
+const ringingUsers = new Set();
 
 const broadcastBusyUsers = () => {
     getIo().emit("busy-users-update", Array.from(usersInCall));
@@ -19,6 +22,7 @@ export const setupSocket = () => {
         //setup
         socket.on("setup", async (userId) => {
             onlineUsers.set(userId, socket.id);
+            socket.userId = userId;
             if (reconnectTimers.has(userId)) {
                 clearTimeout(reconnectTimers.get(userId));
                 reconnectTimers.delete(userId);
@@ -62,22 +66,31 @@ export const setupSocket = () => {
         });
 
         // Start Call: checks busy, joins room and sends incoming-call to target members
-        socket.on("start-call", ({ conversationId, caller, callType, targetUserIds }) => {
+        socket.on("start-call", async ({ conversationId, caller, callType, targetUserIds }) => {
+            const actualUserId = socket.userId;
+            if (!actualUserId) return;
+            const conversation = await Conversation.findById(conversationId);
+            if (!conversation || !conversation.participants.includes(actualUserId)) return;
+            
+            const validTargets = targetUserIds.filter(id => conversation.participants.includes(id));
+            
             // Check if any target is busy before doing anything
-            if (Array.isArray(targetUserIds) && targetUserIds.some(id => usersInCall.has(id))) {
-                socket.emit("user-busy", { targetUserIds });
+            if (validTargets.some(id => usersInCall.has(id) || ringingUsers.has(id))) {
+                socket.emit("user-busy", { targetUserIds: validTargets, conversationId, callType });
                 return;
             }
-            usersInCall.add(caller._id);
+            
+            ringingUsers.add(actualUserId);
+            validTargets.forEach(id => ringingUsers.add(id));
+            
+            usersInCall.add(actualUserId);
             socket.join(`call-${conversationId}`);
-            if (Array.isArray(targetUserIds)) {
-                targetUserIds.forEach(targetId => {
-                    const targetSocket = onlineUsers.get(targetId);
-                    if (targetSocket) {
-                        getIo().to(targetSocket).emit("incoming-call", { conversationId, caller, callType });
-                    }
-                });
-            }
+            validTargets.forEach(targetId => {
+                const targetSocket = onlineUsers.get(targetId);
+                if (targetSocket) {
+                    getIo().to(targetSocket).emit("incoming-call", { conversationId, caller, callType });
+                }
+            });
             broadcastBusyUsers();
         });
 
@@ -87,6 +100,8 @@ export const setupSocket = () => {
                 clearTimeout(disconnectTimeouts.get(user._id));
                 disconnectTimeouts.delete(user._id);
             }
+            ringingUsers.delete(user._id);
+            ringingUsers.delete(socket.userId);
             usersInCall.add(user._id);
             socket.join(`call-${conversationId}`);
             socket.to(`call-${conversationId}`).emit("user-joined", { user });
@@ -103,8 +118,12 @@ export const setupSocket = () => {
 
         // Cancel Call: notifies target users to close their incoming call dialogs
         socket.on("cancel-call", ({ targetUserIds, conversationId }) => {
+            const actualUserId = socket.userId;
+            if (actualUserId) ringingUsers.delete(actualUserId);
+            
             if (Array.isArray(targetUserIds)) {
                 targetUserIds.forEach(targetId => {
+                    ringingUsers.delete(targetId);
                     const targetSocket = onlineUsers.get(targetId);
                     if (targetSocket) {
                         getIo().to(targetSocket).emit("call-cancelled", { conversationId });
@@ -159,22 +178,30 @@ export const setupSocket = () => {
         // ==================== Group Call Signaling ====================
         // Start Group Call: joins room, alerts online group members via socket, sends email to offline ones
         socket.on("start-group-call", async ({ conversationId, caller, callType, targetUserIds }) => {
-            usersInCall.add(caller._id);
+            const actualUserId = socket.userId;
+            if (!actualUserId) return;
+            const conversation = await Conversation.findById(conversationId);
+            if (!conversation || !conversation.participants.includes(actualUserId)) return;
+            
+            const validTargets = targetUserIds.filter(id => conversation.participants.includes(id));
+            
+            ringingUsers.add(actualUserId);
+            usersInCall.add(actualUserId);
             socket.join(`call-${conversationId}`);
-            if (Array.isArray(targetUserIds)) {
-                for (const targetId of targetUserIds) {
-                    const targetSocket = onlineUsers.get(targetId);
-                    if (targetSocket) {
-                        // If target is busy, notify caller instead of ringing them
-                        if (usersInCall.has(targetId)) {
-                            socket.emit("user-busy", { targetUserIds: [targetId] });
-                        } else {
-                            getIo().to(targetSocket).emit("group-incoming-call", { conversationId, caller, callType });
-                        }
+            
+            for (const targetId of validTargets) {
+                const targetSocket = onlineUsers.get(targetId);
+                if (targetSocket) {
+                    // If target is busy, notify caller instead of ringing them
+                    if (usersInCall.has(targetId) || ringingUsers.has(targetId)) {
+                        socket.emit("user-busy", { targetUserIds: [targetId], conversationId, callType: "group" });
                     } else {
-                        // User is offline! Send email notification of the group call using mailService
-                        await sendOfflineCallEmail({ targetId, caller, conversationId });
+                        ringingUsers.add(targetId);
+                        getIo().to(targetSocket).emit("group-incoming-call", { conversationId, caller, callType, groupName: conversation.groupName });
                     }
+                } else {
+                    // User is offline! Send email notification of the group call using mailService
+                    await sendOfflineCallEmail({ targetId, caller, conversationId });
                 }
             }
             broadcastBusyUsers();
@@ -186,6 +213,8 @@ export const setupSocket = () => {
                 clearTimeout(disconnectTimeouts.get(user._id));
                 disconnectTimeouts.delete(user._id);
             }
+            ringingUsers.delete(user._id);
+            ringingUsers.delete(socket.userId);
             usersInCall.add(user._id);
             socket.join(`call-${conversationId}`);
             socket.to(`call-${conversationId}`).emit("group-user-joined", { user });
@@ -194,13 +223,21 @@ export const setupSocket = () => {
 
         // Invite a single user to an existing group call (does NOT re-notify all members)
         socket.on("invite-to-group-call", async ({ conversationId, caller, callType, targetUserId }) => {
-            if (usersInCall.has(targetUserId)) {
-                socket.emit("user-busy", { targetUserIds: [targetUserId] });
+            const actualUserId = socket.userId;
+            if (!actualUserId) return;
+            const conversation = await Conversation.findById(conversationId);
+            if (!conversation || !conversation.participants.includes(actualUserId)) return;
+            if (!conversation.participants.includes(targetUserId)) return;
+
+            if (usersInCall.has(targetUserId) || ringingUsers.has(targetUserId)) {
+                socket.emit("user-busy", { targetUserIds: [targetUserId], conversationId, callType: "group" });
                 return;
             }
+            
+            ringingUsers.add(targetUserId);
             const targetSocket = onlineUsers.get(targetUserId);
             if (targetSocket) {
-                getIo().to(targetSocket).emit("group-incoming-call", { conversationId, caller, callType });
+                getIo().to(targetSocket).emit("group-incoming-call", { conversationId, caller, callType, groupName: conversation.groupName });
             } else {
                 await sendOfflineCallEmail({ targetId: targetUserId, caller, conversationId });
             }
@@ -216,8 +253,12 @@ export const setupSocket = () => {
 
         // Cancel Group Call: notifies target users to close their incoming call dialogs
         socket.on("cancel-group-call", ({ targetUserIds, conversationId }) => {
+            const actualUserId = socket.userId;
+            if (actualUserId) ringingUsers.delete(actualUserId);
+
             if (Array.isArray(targetUserIds)) {
                 targetUserIds.forEach(targetId => {
+                    ringingUsers.delete(targetId);
                     const targetSocket = onlineUsers.get(targetId);
                     if (targetSocket) {
                         getIo().to(targetSocket).emit("group-call-cancelled", { conversationId });

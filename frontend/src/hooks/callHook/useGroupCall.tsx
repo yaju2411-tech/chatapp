@@ -75,12 +75,6 @@ export const useGroupCall = ({
                 conversationId: activeConversationId.current,
                 userId: currentUser._id,
             });
-
-            // Notify other members to cancel their incoming call dialogs if they haven't answered
-            const targetIds = groupMembers.map(m => m._id).filter(id => id !== currentUser._id);
-            if (targetIds.length > 0) {
-                socket.emit("cancel-group-call", { targetUserIds: targetIds, conversationId: activeConversationId.current });
-            }
         }
         if (!isUnloading) {
             sessionStorage.removeItem("activeCall");
@@ -184,7 +178,7 @@ export const useGroupCall = ({
         };
 
         pc.onconnectionstatechange = () => {
-            if (pc.connectionState === "disconnected" || pc.connectionState === "failed" || pc.connectionState === "closed") {
+            if (pc.connectionState === "failed" || pc.connectionState === "closed") {
                 setParticipants(prev => prev.filter(p => p._id !== targetUserId));
                 setRemoteStreams(prev => {
                     const newMap = new Map(prev);
@@ -204,7 +198,8 @@ export const useGroupCall = ({
         activeConversationId.current = conversationId;
         setCallType(type);
         setCalling(true);
-        setCallAccepted(true);
+        // Do not set callAccepted to true yet; caller waits in "Calling..." state
+        setCallAccepted(false);
 
         sessionStorage.setItem("activeCall", JSON.stringify({
             type: "group",
@@ -223,7 +218,11 @@ export const useGroupCall = ({
         ]);
 
         try {
-            await getLocalStream(type);
+            const stream = await getLocalStream(type);
+            if (!stream) {
+                cleanupCall();
+                return;
+            }
 
             const targetUserIds = groupMembers
                 .filter(m => m._id !== currentUser._id)
@@ -267,7 +266,11 @@ export const useGroupCall = ({
         setIncomingCall(null);
 
         try {
-            await getLocalStream(incoming.callType);
+            const stream = await getLocalStream(incoming.callType);
+            if (!stream) {
+                cleanupCall();
+                return;
+            }
 
             socket.emit("join-group-call", {
                 conversationId: incoming.conversationId,
@@ -283,6 +286,12 @@ export const useGroupCall = ({
     };
 
     const endGroupCall = () => {
+        if (socket && currentUser && activeConversationId.current) {
+            const targetIds = groupMembers.map(m => m._id).filter(id => id !== currentUser._id);
+            if (targetIds.length > 0) {
+                socket.emit("cancel-group-call", { targetUserIds: targetIds, conversationId: activeConversationId.current });
+            }
+        }
         cleanupCall();
     };
 
@@ -431,7 +440,7 @@ export const useGroupCall = ({
             if (!calling) return;
             if (!peerConnections.current || !activeConversationId.current) return;
 
-
+            setCallAccepted(true);
 
             setParticipants(prev => {
                 if (prev.some(p => p._id === user._id)) return prev;

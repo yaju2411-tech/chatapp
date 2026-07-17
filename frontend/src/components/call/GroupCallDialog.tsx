@@ -242,7 +242,15 @@ export default function GroupCallDialog({
                         return (
                             <div
                                 key={p._id}
+                                role="button"
+                                tabIndex={0}
                                 onClick={() => setFocusedParticipantId(p._id)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        setFocusedParticipantId(p._id);
+                                    }
+                                }}
                                 className={`w-36 md:w-full aspect-video rounded-xl bg-zinc-900 border transition-all duration-200 cursor-pointer overflow-hidden flex flex-col items-center justify-center relative shrink-0 ${
                                     p._id === activeFocusId
                                         ? "border-green-500 shadow-md ring-1 ring-green-500/50"
@@ -350,6 +358,7 @@ export default function GroupCallDialog({
                         <Button
                             variant="ghost"
                             size="icon"
+                            aria-label="Close call"
                             onClick={() => setIsInviteOpen(false)}
                             className="absolute top-4 right-4 text-zinc-400 hover:text-white rounded-full cursor-pointer"
                         >

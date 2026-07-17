@@ -102,7 +102,7 @@ export const useOneToOneCall = ({
         setCameraEnabled(true);
         isCaller.current = false;
         activeConversationId.current = null;
-    }, [cleanupAllPeers, socket, currentUser]);
+    }, [cleanupAllPeers, socket, currentUser, otherUser]);
 
     const getLocalStream = async (type: "audio" | "video") => {
         const audioConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
@@ -207,7 +207,8 @@ export const useOneToOneCall = ({
         sessionStorage.setItem("activeCall", JSON.stringify({
             type: "1to1",
             conversationId,
-            callType: type
+            callType: type,
+            expiry: Date.now() + 60000 // 60s to answer
         }));
 
         // Add local user to participants list
@@ -255,7 +256,8 @@ export const useOneToOneCall = ({
         sessionStorage.setItem("activeCall", JSON.stringify({
             type: "1to1",
             conversationId: incomingCall.conversationId,
-            callType: incomingCall.callType
+            callType: incomingCall.callType,
+            expiry: Date.now() + (4 * 60 * 60 * 1000) // 4 hours max duration
         }));
 
         setParticipants([
@@ -449,7 +451,7 @@ export const useOneToOneCall = ({
             if (saved) {
                 try {
                     const parsed = JSON.parse(saved);
-                    if (parsed.type === "1to1") {
+                    if (parsed.type === "1to1" && parsed.expiry && Date.now() < parsed.expiry) {
                         // Validate with server
                         socket.emit("validate-call", { conversationId: parsed.conversationId }, async (isValid: boolean) => {
                             if (!isValid) {
@@ -647,6 +649,9 @@ export const useOneToOneCall = ({
         };
 
         const handleReconnect = () => {
+            if (currentUser) {
+                socket.emit("setup", currentUser._id);
+            }
             if (calling && activeConversationId.current) {
                 console.log("[socket] Reconnected. Rejoining 1-to-1 call room...");
                 socket.emit("join-call", {
@@ -660,7 +665,9 @@ export const useOneToOneCall = ({
             setBusyUsers(busyList);
         };
 
-        const handleUserBusy = () => {
+        const handleUserBusy = ({ conversationId, callType: incomingType }: any) => {
+            if (conversationId && activeConversationId.current !== conversationId) return;
+            if (incomingType && incomingType !== "audio" && incomingType !== "video") return;
             // Immediately cleanup — closes the dialog, stops camera/mic, resets state
             cleanupCall();
             // Show red toast at top center
@@ -722,7 +729,7 @@ export const useOneToOneCall = ({
             socket.off("user-toggle-camera", handleUserToggleCamera);
             socket.off("call-cancelled", handleCancelCall);
         };
-    }, [socket, currentUser, calling, cleanupCall, cleanupPeer]);
+    }, [socket, currentUser, calling, cleanupCall, cleanupPeer, otherUser, callType]);
 
     const cleanupCallRef = useRef(cleanupCall);
     useEffect(() => {
