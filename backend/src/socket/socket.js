@@ -2,6 +2,7 @@ import { User } from "../models/User.js";
 import { Conversation } from "../models/Conversation.js";
 import { getIo } from "./socketServer.js";
 import { sendOfflineCallEmail } from "../service/mailService.js";
+import jwt from "jsonwebtoken";
 
 export const onlineUsers = new Map();
 // Track which users are currently in an active call
@@ -20,7 +21,19 @@ export const setupSocket = () => {
     io.on("connection", (socket) => {
         console.log("Socket connected:", socket.id);
         //setup
-        socket.on("setup", async (userId) => {
+        socket.on("setup", async (payload) => {
+            let userId = payload;
+            try {
+                if (payload && typeof payload === "string" && payload.split(".").length === 3) {
+                    const decode = jwt.verify(payload, process.env.JWT_SECRET);
+                    userId = decode.id;
+                }
+            } catch (err) {
+                console.error("Socket setup invalid token:", err.message);
+                return;
+            }
+            if (!userId) return;
+
             onlineUsers.set(userId, socket.id);
             socket.userId = userId;
             if (reconnectTimers.has(userId)) {
@@ -68,11 +81,14 @@ export const setupSocket = () => {
         // Start Call: checks busy, joins room and sends incoming-call to target members
         socket.on("start-call", async ({ conversationId, caller, callType, targetUserIds }) => {
             const actualUserId = socket.userId;
-            if (!actualUserId) return;
-            const conversation = await Conversation.findById(conversationId);
-            if (!conversation || !conversation.participants.includes(actualUserId)) return;
+            if (!actualUserId || caller?._id !== actualUserId) return;
+            if (!Array.isArray(targetUserIds)) return;
             
-            const validTargets = targetUserIds.filter(id => conversation.participants.includes(id));
+            const conversation = await Conversation.findById(conversationId);
+            if (!conversation || !conversation?.participants?.includes(actualUserId)) return;
+            
+            const validTargets = targetUserIds.filter(id => conversation?.participants?.includes(id));
+            if (validTargets.length === 0) return;
             
             // Check if any target is busy before doing anything
             if (validTargets.some(id => usersInCall.has(id) || ringingUsers.has(id))) {
@@ -179,11 +195,14 @@ export const setupSocket = () => {
         // Start Group Call: joins room, alerts online group members via socket, sends email to offline ones
         socket.on("start-group-call", async ({ conversationId, caller, callType, targetUserIds }) => {
             const actualUserId = socket.userId;
-            if (!actualUserId) return;
-            const conversation = await Conversation.findById(conversationId);
-            if (!conversation || !conversation.participants.includes(actualUserId)) return;
+            if (!actualUserId || caller?._id !== actualUserId) return;
+            if (!Array.isArray(targetUserIds)) return;
             
-            const validTargets = targetUserIds.filter(id => conversation.participants.includes(id));
+            const conversation = await Conversation.findById(conversationId);
+            if (!conversation || !conversation?.participants?.includes(actualUserId)) return;
+            
+            const validTargets = targetUserIds.filter(id => conversation?.participants?.includes(id));
+            if (validTargets.length === 0) return;
             
             ringingUsers.add(actualUserId);
             usersInCall.add(actualUserId);
@@ -224,10 +243,12 @@ export const setupSocket = () => {
         // Invite a single user to an existing group call (does NOT re-notify all members)
         socket.on("invite-to-group-call", async ({ conversationId, caller, callType, targetUserId }) => {
             const actualUserId = socket.userId;
-            if (!actualUserId) return;
+            if (!actualUserId || caller?._id !== actualUserId) return;
+            if (!usersInCall.has(actualUserId)) return;
+            
             const conversation = await Conversation.findById(conversationId);
-            if (!conversation || !conversation.participants.includes(actualUserId)) return;
-            if (!conversation.participants.includes(targetUserId)) return;
+            if (!conversation || !conversation?.participants?.includes(actualUserId)) return;
+            if (!conversation?.participants?.includes(targetUserId)) return;
 
             if (usersInCall.has(targetUserId) || ringingUsers.has(targetUserId)) {
                 socket.emit("user-busy", { targetUserIds: [targetUserId], conversationId, callType: "group" });

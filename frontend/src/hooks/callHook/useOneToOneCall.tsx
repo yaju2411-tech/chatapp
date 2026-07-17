@@ -650,7 +650,8 @@ export const useOneToOneCall = ({
 
         const handleReconnect = () => {
             if (currentUser) {
-                socket.emit("setup", currentUser._id);
+                const token = localStorage.getItem("token") || currentUser._id;
+                socket.emit("setup", token);
             }
             if (calling && activeConversationId.current) {
                 console.log("[socket] Reconnected. Rejoining 1-to-1 call room...");

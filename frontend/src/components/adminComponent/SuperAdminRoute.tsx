@@ -7,8 +7,10 @@ import { Navigate } from "react-router-dom";
 export const SuperAdminRoute = ({children}:{children:React.ReactNode})=>{
     const {data,isLoading}=useProfile();
     useEffect(() => {
-        if(data?.user._id)
-            {socket.emit("setup",data?.user._id);}
+        if(data?.user){
+            const token = localStorage.getItem("token") || data.user._id;
+            socket.emit("setup", token);
+        }
     },[data]);
     if(isLoading)
         return <>Loading...</>;

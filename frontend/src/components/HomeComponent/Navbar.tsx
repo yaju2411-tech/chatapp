@@ -25,8 +25,9 @@ export function NavUser() {
 
   useEffect(() => {
     if (user) {
-      if (user?._id) {
-        socket.emit("setup", user._id);
+      if(user?._id){
+        const token = localStorage.getItem("token") || user._id;
+        socket.emit("setup", token);
       }
       setName(user.name);
       setPreviewAvatar(user.avatar);

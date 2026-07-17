@@ -127,7 +127,8 @@ export default function Page() {
   useEffect(() => {
     if (user) {
       if (user?._id) {
-        socket.emit("setup", user._id);
+        const token = localStorage.getItem("token") || user._id;
+        socket.emit("setup", token);
       }
     }
     if (selectedchat) {
