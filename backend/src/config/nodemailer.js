@@ -26,7 +26,7 @@ export const transporter = nodemailer.createTransport({
 });
 
 export const getMailSender = () => {
-    return process.env.SMTP_FROM || process.env.EMAIL_USER || "onboarding@resend.dev";
+    return process.env.SMTP_FROM || process.env.SMTP_USER || process.env.EMAIL_USER || "onboarding@resend.dev";
 };
 
 transporter.verify((err, success) => {
