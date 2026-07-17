@@ -113,6 +113,15 @@ export const setupSocket = () => {
             }
         });
 
+        // Validate Call: checks if a call room is still active
+        socket.on("validate-call", ({ conversationId }, callback) => {
+            const room = getIo().sockets.adapter.rooms.get(`call-${conversationId}`);
+            const exists = room && room.size > 0;
+            if (typeof callback === "function") {
+                callback(!!exists);
+            }
+        });
+
         // WebRTC SDP Offer forwarding
         socket.on("webrtc-offer", ({ targetUserId, ...rest }) => {
             const targetSocket = onlineUsers.get(targetUserId);

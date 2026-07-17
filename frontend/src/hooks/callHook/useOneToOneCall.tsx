@@ -450,24 +450,32 @@ export const useOneToOneCall = ({
                 try {
                     const parsed = JSON.parse(saved);
                     if (parsed.type === "1to1") {
-                        isCaller.current = false;
-                        activeConversationId.current = parsed.conversationId;
-                        setCallType(parsed.callType);
-                        setCalling(true);
-                        setCallAccepted(true);
+                        // Validate with server
+                        socket.emit("validate-call", { conversationId: parsed.conversationId }, async (isValid: boolean) => {
+                            if (!isValid) {
+                                sessionStorage.removeItem("activeCall");
+                                return;
+                            }
 
-                        setParticipants([{
-                            _id: currentUser._id,
-                            name: "You",
-                            avatar: currentUser.avatar,
-                            isVideoOff: parsed.callType === "audio",
-                            isMuted: false,
-                        }]);
+                            isCaller.current = false;
+                            activeConversationId.current = parsed.conversationId;
+                            setCallType(parsed.callType);
+                            setCalling(true);
+                            setCallAccepted(true);
 
-                        await getLocalStream(parsed.callType);
-                        socket.emit("join-call", {
-                            conversationId: parsed.conversationId,
-                            user: currentUser,
+                            setParticipants([{
+                                _id: currentUser._id,
+                                name: "You",
+                                avatar: currentUser.avatar,
+                                isVideoOff: parsed.callType === "audio",
+                                isMuted: false,
+                            }]);
+
+                            await getLocalStream(parsed.callType);
+                            socket.emit("join-call", {
+                                conversationId: parsed.conversationId,
+                                user: currentUser,
+                            });
                         });
                     }
                 } catch (e) {
