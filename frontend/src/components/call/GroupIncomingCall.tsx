@@ -26,7 +26,7 @@ export default function GroupIncomingCall({
     if (!open || !caller) return null;
     return (
         <Dialog open={open} onOpenChange={(val) => { if (!val) onReject(); }}>
-            <DialogContent className="sm:max-w-[425px] bg-zinc-900 border border-zinc-800 text-white rounded-2xl p-6 flex flex-col items-center gap-6 shadow-2xl">
+            <DialogContent aria-describedby={undefined} className="sm:max-w-[425px] bg-zinc-900 border border-zinc-800 text-white rounded-2xl p-6 flex flex-col items-center gap-6 shadow-2xl">
                 <DialogTitle className="sr-only">Incoming Group Call</DialogTitle>
                 <div className="relative mt-4">
                     {/* Pulsing ring animation */}

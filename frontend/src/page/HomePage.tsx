@@ -59,6 +59,7 @@ export default function Page() {
     inviteUser,
     toggleLocalMic,
     toggleLocalCamera,
+    busyUsers,
   } = useOneToOneCall({
     socket,
     currentUser: user,
@@ -80,8 +81,10 @@ export default function Page() {
     acceptGroupCall,
     rejectGroupCall,
     endGroupCall,
+    inviteGroupUser,
     toggleLocalMic: groupToggleLocalMic,
     toggleLocalCamera: groupToggleLocalCamera,
+    busyUsers: groupBusyUsers,
   } = useGroupCall({
     socket,
     currentUser: user,
@@ -98,9 +101,12 @@ export default function Page() {
   };
 
   useEffect(() => {
+    const oldChat = selectedchat;
     return () => {
-      endCall();
-      endGroupCall();
+      if (oldChat !== null) {
+        endCall();
+        endGroupCall();
+      }
     };
   }, [selectedchat]);
 
@@ -303,7 +309,7 @@ export default function Page() {
               </div>
               <div className="sticky shrink-0 border-t p-4 bg-black">
                 <MessageInput reply={reply} clearReply={() => setReply(null)}
-                   conversationId={selectedchat} currentUser={user} receiver={otherUser} onCall={handleCallInitiated} />
+                  conversationId={selectedchat} currentUser={user} receiver={otherUser} onCall={handleCallInitiated} />
               </div>
             </>) : (
               <div className="flex flex-1 flex-col items-center justify-center" style={{
@@ -340,6 +346,7 @@ export default function Page() {
       cameraEnabled={cameraEnabled}
       currentUser={user}
       friends={friendsData?.friends || []}
+      busyUsers={busyUsers}
       onInviteUser={inviteUser}
       onLeave={endCall}
       onToggleMic={toggleLocalMic}
@@ -368,14 +375,8 @@ export default function Page() {
       cameraEnabled={groupCameraEnabled}
       currentUser={user}
       friends={friendsData?.friends || []}
-      onInviteUser={(targetUserId) => {
-        socket.emit("start-call", {
-          conversationId: selectedchat,
-          caller: user,
-          callType: groupCallType || "audio",
-          targetUserIds: [targetUserId],
-        });
-      }}
+      busyUsers={groupBusyUsers}
+      onInviteUser={inviteGroupUser}
       onLeave={endGroupCall}
       onToggleMic={groupToggleLocalMic}
       onToggleCamera={groupToggleLocalCamera}

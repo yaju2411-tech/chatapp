@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { isUnloading } from "@/utils/unload";
 
 interface Participant {
     _id: string;
@@ -33,19 +34,20 @@ export const useOneToOneCall = ({
     const [callAccepted, setCallAccepted] = useState(false);
     const [callType, setCallType] = useState<"audio" | "video" | null>(null);
     const [incomingCall, setIncomingCall] = useState<any>(null);
-    
+
     const [localMediaStream, setLocalMediaStream] = useState<MediaStream | null>(null);
     const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
     const [participants, setParticipants] = useState<Participant[]>([]);
-    
+
     const [micEnabled, setMicEnabled] = useState(true);
     const [cameraEnabled, setCameraEnabled] = useState(true);
+    const [busyUsers, setBusyUsers] = useState<string[]>([]);
 
     const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
     const localStream = useRef<MediaStream | null>(null);
     const isCaller = useRef(false);
     const pendingCandidates = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
-    
+
     // Store conversation ID internally so control methods work even if selectedchat is null on recipient side
     const activeConversationId = useRef<string | null>(null);
 
@@ -70,6 +72,20 @@ export const useOneToOneCall = ({
     }, [cleanupPeer]);
 
     const cleanupCall = useCallback(() => {
+        if (socket && currentUser && activeConversationId.current && !isUnloading) {
+            socket.emit("leave-call", {
+                conversationId: activeConversationId.current,
+                userId: currentUser._id,
+            });
+
+            // Notify target user to cancel their incoming call dialog if they haven't answered
+            if (otherUser) {
+                socket.emit("cancel-call", { targetUserIds: [otherUser._id], conversationId: activeConversationId.current });
+            }
+        }
+        if (!isUnloading) {
+            sessionStorage.removeItem("activeCall");
+        }
         cleanupAllPeers();
         if (localStream.current) {
             localStream.current.getTracks().forEach((track) => track.stop());
@@ -86,7 +102,7 @@ export const useOneToOneCall = ({
         setCameraEnabled(true);
         isCaller.current = false;
         activeConversationId.current = null;
-    }, [cleanupAllPeers]);
+    }, [cleanupAllPeers, socket, currentUser]);
 
     const getLocalStream = async (type: "audio" | "video") => {
         const audioConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
@@ -182,11 +198,17 @@ export const useOneToOneCall = ({
     };
 
     const startCall = async (type: "audio" | "video") => {
-        if (!otherUser || !currentUser || !conversationId) return;
+        if (!otherUser || !currentUser || !conversationId || calling) return;
         isCaller.current = true;
         activeConversationId.current = conversationId;
         setCallType(type);
         setCalling(true);
+
+        sessionStorage.setItem("activeCall", JSON.stringify({
+            type: "1to1",
+            conversationId,
+            callType: type
+        }));
 
         // Add local user to participants list
         setParticipants([
@@ -209,7 +231,7 @@ export const useOneToOneCall = ({
         try {
             await getLocalStream(type);
             createPeerConnection(otherUser._id);
-            
+
             socket.emit("start-call", {
                 conversationId,
                 caller: currentUser,
@@ -229,6 +251,12 @@ export const useOneToOneCall = ({
         setCallType(incomingCall.callType);
         setCalling(true);
         setCallAccepted(true);
+
+        sessionStorage.setItem("activeCall", JSON.stringify({
+            type: "1to1",
+            conversationId: incomingCall.conversationId,
+            callType: incomingCall.callType
+        }));
 
         setParticipants([
             {
@@ -287,11 +315,6 @@ export const useOneToOneCall = ({
     };
 
     const endCall = () => {
-        if (!currentUser || !activeConversationId.current) return;
-        socket.emit("leave-call", {
-            conversationId: activeConversationId.current,
-            userId: currentUser._id,
-        });
         cleanupCall();
     };
 
@@ -331,9 +354,9 @@ export const useOneToOneCall = ({
             if (track) {
                 track.enabled = !track.enabled;
                 setMicEnabled(track.enabled);
-                
+
                 // Update local participant state
-                setParticipants(prev => prev.map(p => 
+                setParticipants(prev => prev.map(p =>
                     p._id === currentUser._id ? { ...p, isMuted: !track.enabled } : p
                 ));
 
@@ -349,7 +372,7 @@ export const useOneToOneCall = ({
     const toggleLocalCamera = async () => {
         if (!localStream.current || !currentUser || !activeConversationId.current) return;
         let track = localStream.current.getVideoTracks()[0];
-        
+
         if (!track) {
             try {
                 const videoStream = await navigator.mediaDevices.getUserMedia({
@@ -366,7 +389,7 @@ export const useOneToOneCall = ({
                     setCameraEnabled(true);
                     setCallType("video");
 
-                    setParticipants(prev => prev.map(p => 
+                    setParticipants(prev => prev.map(p =>
                         p._id === currentUser._id ? { ...p, isVideoOff: false } : p
                     ));
 
@@ -400,7 +423,7 @@ export const useOneToOneCall = ({
             track.enabled = !track.enabled;
             setCameraEnabled(track.enabled);
 
-            setParticipants(prev => prev.map(p => 
+            setParticipants(prev => prev.map(p =>
                 p._id === currentUser._id ? { ...p, isVideoOff: !track.enabled } : p
             ));
 
@@ -412,9 +435,47 @@ export const useOneToOneCall = ({
         }
     };
 
-    // Socket Event Handlers
+    const recoveryAttempted = useRef(false);
+
+    // Socket Event Handlers & Recovery
     useEffect(() => {
         if (!socket || !currentUser) return;
+
+        const checkRecovery = async () => {
+            if (recoveryAttempted.current) return;
+            recoveryAttempted.current = true;
+
+            const saved = sessionStorage.getItem("activeCall");
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.type === "1to1") {
+                        isCaller.current = false;
+                        activeConversationId.current = parsed.conversationId;
+                        setCallType(parsed.callType);
+                        setCalling(true);
+                        setCallAccepted(true);
+
+                        setParticipants([{
+                            _id: currentUser._id,
+                            name: "You",
+                            avatar: currentUser.avatar,
+                            isVideoOff: parsed.callType === "audio",
+                            isMuted: false,
+                        }]);
+
+                        await getLocalStream(parsed.callType);
+                        socket.emit("join-call", {
+                            conversationId: parsed.conversationId,
+                            user: currentUser,
+                        });
+                    }
+                } catch (e) {
+                    console.error("Recovery failed", e);
+                }
+            }
+        };
+        checkRecovery();
 
         const handleIncomingCall = (data: any) => {
             if (calling || localStream.current) return;
@@ -454,7 +515,7 @@ export const useOneToOneCall = ({
                     offerToReceiveVideo: true,
                 });
                 await pc.setLocalDescription(offer);
-                
+
                 socket.emit("webrtc-offer", {
                     targetUserId: user._id,
                     senderId: currentUser._id,
@@ -484,7 +545,7 @@ export const useOneToOneCall = ({
                         _id: senderId,
                         name: sender.name,
                         avatar: sender.avatar,
-                        isVideoOff: true,
+                        isVideoOff: callType === "audio",
                         isMuted: false,
                     }];
                 });
@@ -493,13 +554,6 @@ export const useOneToOneCall = ({
             try {
                 await pc.setRemoteDescription(new RTCSessionDescription(offer));
 
-                // Process pending candidates
-                const queued = pendingCandidates.current.get(senderId) || [];
-                while (queued.length > 0) {
-                    const cand = queued.shift();
-                    if (cand) await pc.addIceCandidate(new RTCIceCandidate(cand));
-                }
-                
                 // Add local tracks if not already added
                 if (localStream.current) {
                     localStream.current.getTracks().forEach((track) => {
@@ -526,13 +580,6 @@ export const useOneToOneCall = ({
             if (!pc) return;
             try {
                 await pc.setRemoteDescription(new RTCSessionDescription(answer));
-
-                // Process pending candidates
-                const queued = pendingCandidates.current.get(senderId) || [];
-                while (queued.length > 0) {
-                    const cand = queued.shift();
-                    if (cand) await pc.addIceCandidate(new RTCIceCandidate(cand));
-                }
             } catch (err) {
                 console.error("Failed to set remote description from answer:", err);
             }
@@ -577,13 +624,13 @@ export const useOneToOneCall = ({
         };
 
         const handleUserToggleMic = ({ userId, isMuted }: any) => {
-            setParticipants(prev => prev.map(p => 
+            setParticipants(prev => prev.map(p =>
                 p._id === userId ? { ...p, isMuted } : p
             ));
         };
 
         const handleUserToggleCamera = ({ userId, isVideoOff }: any) => {
-            setParticipants(prev => prev.map(p => 
+            setParticipants(prev => prev.map(p =>
                 p._id === userId ? { ...p, isVideoOff } : p
             ));
             if (!isVideoOff) {
@@ -591,7 +638,60 @@ export const useOneToOneCall = ({
             }
         };
 
+        const handleReconnect = () => {
+            if (calling && activeConversationId.current) {
+                console.log("[socket] Reconnected. Rejoining 1-to-1 call room...");
+                socket.emit("join-call", {
+                    conversationId: activeConversationId.current,
+                    user: currentUser,
+                });
+            }
+        };
+
+        const handleBusyUsersUpdate = (busyList: string[]) => {
+            setBusyUsers(busyList);
+        };
+
+        const handleUserBusy = () => {
+            // Immediately cleanup — closes the dialog, stops camera/mic, resets state
+            cleanupCall();
+            // Show red toast at top center
+            const toast = document.createElement("div");
+            toast.innerText = "Person you have dialed is currently busy";
+            toast.style.cssText = [
+                "position:fixed",
+                "top:24px",
+                "left:50%",
+                "transform:translateX(-50%)",
+                "background:#dc2626",
+                "color:#fff",
+                "padding:12px 28px",
+                "border-radius:12px",
+                "font-weight:600",
+                "font-size:14px",
+                "z-index:99999",
+                "box-shadow:0 4px 20px rgba(0,0,0,0.5)",
+                "letter-spacing:0.01em",
+                "pointer-events:none",
+                "animation:fadeInDown 0.25s ease",
+            ].join(";");
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        };
+
+        const handleCancelCall = ({ conversationId }: any) => {
+            setIncomingCall(prev => {
+                if (prev && prev.conversationId === conversationId) return null;
+                return prev;
+            });
+        };
+
+        socket.emit("get-busy-users");
+        socket.on("connect", handleReconnect);
+        socket.on("busy-users-update", handleBusyUsersUpdate);
+        socket.on("user-busy", handleUserBusy);
         socket.on("incoming-call", handleIncomingCall);
+        socket.on("call-cancelled", handleCancelCall);
         socket.on("user-joined", handleUserJoined);
         socket.on("webrtc-offer", handleOffer);
         socket.on("webrtc-answer", handleAnswer);
@@ -601,6 +701,9 @@ export const useOneToOneCall = ({
         socket.on("user-toggle-camera", handleUserToggleCamera);
 
         return () => {
+            socket.off("connect", handleReconnect);
+            socket.off("busy-users-update", handleBusyUsersUpdate);
+            socket.off("user-busy", handleUserBusy);
             socket.off("incoming-call", handleIncomingCall);
             socket.off("user-joined", handleUserJoined);
             socket.off("webrtc-offer", handleOffer);
@@ -609,8 +712,14 @@ export const useOneToOneCall = ({
             socket.off("user-left", handleUserLeft);
             socket.off("user-toggle-mic", handleUserToggleMic);
             socket.off("user-toggle-camera", handleUserToggleCamera);
+            socket.off("call-cancelled", handleCancelCall);
         };
     }, [socket, currentUser, calling, cleanupCall, cleanupPeer]);
+
+    // Ensure all peers are cleaned up on full unmount
+    useEffect(() => {
+        return () => cleanupAllPeers();
+    }, [cleanupAllPeers]);
 
     return {
         calling,
@@ -622,6 +731,7 @@ export const useOneToOneCall = ({
         participants,
         micEnabled,
         cameraEnabled,
+        busyUsers,
         startCall,
         acceptCall,
         rejectCall,

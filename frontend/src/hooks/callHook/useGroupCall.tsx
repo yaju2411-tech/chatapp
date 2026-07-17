@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { isUnloading } from "@/utils/unload";
 
 interface Participant {
     _id: string;
@@ -40,9 +41,11 @@ export const useGroupCall = ({
 
     const [micEnabled, setMicEnabled] = useState(true);
     const [cameraEnabled, setCameraEnabled] = useState(true);
+    const [busyUsers, setBusyUsers] = useState<string[]>([]);
 
     const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
     const localStream = useRef<MediaStream | null>(null);
+    const isCaller = useRef(false);
     const pendingCandidates = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
     const activeConversationId = useRef<string | null>(null);
 
@@ -67,6 +70,21 @@ export const useGroupCall = ({
     }, [cleanupPeer]);
 
     const cleanupCall = useCallback(() => {
+        if (socket && currentUser && activeConversationId.current && !isUnloading) {
+            socket.emit("leave-group-call", {
+                conversationId: activeConversationId.current,
+                userId: currentUser._id,
+            });
+
+            // Notify other members to cancel their incoming call dialogs if they haven't answered
+            const targetIds = groupMembers.map(m => m._id).filter(id => id !== currentUser._id);
+            if (targetIds.length > 0) {
+                socket.emit("cancel-group-call", { targetUserIds: targetIds, conversationId: activeConversationId.current });
+            }
+        }
+        if (!isUnloading) {
+            sessionStorage.removeItem("activeCall");
+        }
         cleanupAllPeers();
         if (localStream.current) {
             localStream.current.getTracks().forEach((track) => track.stop());
@@ -81,10 +99,16 @@ export const useGroupCall = ({
         setIncomingCall(null);
         setMicEnabled(true);
         setCameraEnabled(true);
+        isCaller.current = false;
         activeConversationId.current = null;
-    }, [cleanupAllPeers]);
+    }, [cleanupAllPeers, socket, currentUser]);
 
     const getLocalStream = async (type: "audio" | "video") => {
+        // Return existing stream only if tracks are still live
+        if (localStream.current && localStream.current.getTracks().some(t => t.readyState === "live")) {
+            return localStream.current;
+        }
+        localStream.current = null;
         const audioConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
         const videoConstraints = {
             width: { ideal: 640 },
@@ -140,7 +164,7 @@ export const useGroupCall = ({
 
         pc.onicecandidate = (event) => {
             if (event.candidate && currentUser) {
-                socket.emit("ice-candidate", {
+                socket.emit("group-ice-candidate", {
                     targetUserId,
                     senderId: currentUser._id,
                     candidate: event.candidate,
@@ -176,11 +200,17 @@ export const useGroupCall = ({
     };
 
     const startGroupCall = async (type: "audio" | "video") => {
-        if (!currentUser || !conversationId) return;
+        if (!currentUser || !conversationId || calling) return;
         activeConversationId.current = conversationId;
         setCallType(type);
         setCalling(true);
         setCallAccepted(true);
+
+        sessionStorage.setItem("activeCall", JSON.stringify({
+            type: "group",
+            conversationId,
+            callType: type
+        }));
 
         setParticipants([
             {
@@ -199,7 +229,7 @@ export const useGroupCall = ({
                 .filter(m => m._id !== currentUser._id)
                 .map(m => m._id);
 
-            socket.emit("start-call", {
+            socket.emit("start-group-call", {
                 conversationId,
                 caller: currentUser,
                 callType: type,
@@ -218,6 +248,12 @@ export const useGroupCall = ({
         setCalling(true);
         setCallAccepted(true);
 
+        sessionStorage.setItem("activeCall", JSON.stringify({
+            type: "group",
+            conversationId: incoming.conversationId,
+            callType: incoming.callType
+        }));
+
         setParticipants([
             {
                 _id: currentUser._id,
@@ -233,7 +269,7 @@ export const useGroupCall = ({
         try {
             await getLocalStream(incoming.callType);
 
-            socket.emit("join-call", {
+            socket.emit("join-group-call", {
                 conversationId: incoming.conversationId,
                 user: currentUser,
             });
@@ -247,12 +283,17 @@ export const useGroupCall = ({
     };
 
     const endGroupCall = () => {
-        if (!currentUser || !activeConversationId.current) return;
-        socket.emit("leave-call", {
-            conversationId: activeConversationId.current,
-            userId: currentUser._id,
-        });
         cleanupCall();
+    };
+
+    const inviteGroupUser = (targetUserId: string) => {
+        if (!activeConversationId.current || !currentUser) return;
+        socket.emit("invite-to-group-call", {
+            conversationId: activeConversationId.current,
+            caller: currentUser,
+            callType: callType || "audio",
+            targetUserId,
+        });
     };
 
     const toggleLocalMic = () => {
@@ -266,7 +307,7 @@ export const useGroupCall = ({
                     p._id === currentUser._id ? { ...p, isMuted: !track.enabled } : p
                 ));
 
-                socket.emit("toggle-mic", {
+                socket.emit("toggle-group-mic", {
                     conversationId: activeConversationId.current,
                     userId: currentUser._id,
                     isMuted: !track.enabled,
@@ -303,7 +344,7 @@ export const useGroupCall = ({
                         pc.addTrack(newTrack, localStream.current!);
                         const offer = await pc.createOffer();
                         await pc.setLocalDescription(offer);
-                        socket.emit("webrtc-offer", {
+                        socket.emit("group-webrtc-offer", {
                             targetUserId: peerId,
                             senderId: currentUser._id,
                             sender: {
@@ -315,7 +356,7 @@ export const useGroupCall = ({
                         });
                     });
 
-                    socket.emit("toggle-camera", {
+                    socket.emit("toggle-group-camera", {
                         conversationId: activeConversationId.current,
                         userId: currentUser._id,
                         isVideoOff: false,
@@ -332,7 +373,7 @@ export const useGroupCall = ({
                 p._id === currentUser._id ? { ...p, isVideoOff: !track.enabled } : p
             ));
 
-            socket.emit("toggle-camera", {
+            socket.emit("toggle-group-camera", {
                 conversationId: activeConversationId.current,
                 userId: currentUser._id,
                 isVideoOff: !track.enabled,
@@ -340,8 +381,46 @@ export const useGroupCall = ({
         }
     };
 
+    const recoveryAttempted = useRef(false);
+
     useEffect(() => {
         if (!socket || !currentUser) return;
+
+        const checkRecovery = async () => {
+            if (recoveryAttempted.current) return;
+            recoveryAttempted.current = true;
+
+            const saved = sessionStorage.getItem("activeCall");
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.type === "group") {
+                        isCaller.current = false;
+                        activeConversationId.current = parsed.conversationId;
+                        setCallType(parsed.callType);
+                        setCalling(true);
+                        setCallAccepted(true);
+                        
+                        setParticipants([{
+                            _id: currentUser._id,
+                            name: "You",
+                            avatar: currentUser.avatar,
+                            isVideoOff: parsed.callType === "audio",
+                            isMuted: false,
+                        }]);
+
+                        await getLocalStream(parsed.callType);
+                        socket.emit("join-group-call", {
+                            conversationId: parsed.conversationId,
+                            user: currentUser,
+                        });
+                    }
+                } catch (e) {
+                    console.error("Recovery failed", e);
+                }
+            }
+        };
+        checkRecovery();
 
         const handleIncomingCall = (data: any) => {
             if (calling || localStream.current) return;
@@ -349,7 +428,10 @@ export const useGroupCall = ({
         };
 
         const handleUserJoined = async ({ user }: any) => {
+            if (!calling) return;
             if (!peerConnections.current || !activeConversationId.current) return;
+
+
 
             setParticipants(prev => {
                 if (prev.some(p => p._id === user._id)) return prev;
@@ -357,7 +439,7 @@ export const useGroupCall = ({
                     _id: user._id,
                     name: user.name,
                     avatar: user.avatar,
-                    isVideoOff: true,
+                    isVideoOff: callType === "audio",
                     isMuted: false,
                 }];
             });
@@ -377,7 +459,7 @@ export const useGroupCall = ({
                 });
                 await pc.setLocalDescription(offer);
 
-                socket.emit("webrtc-offer", {
+                socket.emit("group-webrtc-offer", {
                     targetUserId: user._id,
                     senderId: currentUser._id,
                     sender: {
@@ -393,6 +475,13 @@ export const useGroupCall = ({
         };
 
         const handleOffer = async ({ senderId, sender, offer }: any) => {
+            if (!calling) return;
+
+            // Wait for local stream to be fully initialized before answering
+            if (!localStream.current && callType) {
+                await getLocalStream(callType);
+            }
+
             let pc = peerConnections.current.get(senderId);
             if (!pc) {
                 pc = createPeerConnection(senderId);
@@ -405,13 +494,17 @@ export const useGroupCall = ({
                         _id: senderId,
                         name: sender.name,
                         avatar: sender.avatar,
-                        isVideoOff: true,
+                        isVideoOff: callType === "audio",
                         isMuted: false,
                     }];
                 });
             }
 
             try {
+                if (pc.signalingState === "have-remote-offer") {
+                    console.warn(`[webrtc-offer] Skipping: Already have remote offer (signalingState: ${pc.signalingState})`);
+                    return;
+                }
                 await pc.setRemoteDescription(new RTCSessionDescription(offer));
 
                 // Process pending candidates
@@ -431,7 +524,7 @@ export const useGroupCall = ({
 
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
-                socket.emit("webrtc-answer", {
+                socket.emit("group-webrtc-answer", {
                     targetUserId: senderId,
                     senderId: currentUser._id,
                     answer,
@@ -442,8 +535,13 @@ export const useGroupCall = ({
         };
 
         const handleAnswer = async ({ senderId, answer }: any) => {
+            if (!calling) return;
             const pc = peerConnections.current.get(senderId);
             if (!pc) return;
+            if (pc.signalingState !== "have-local-offer") {
+                console.warn(`[webrtc-answer] Skipping: Signaling state is not have-local-offer (current: ${pc.signalingState})`);
+                return;
+            }
             try {
                 await pc.setRemoteDescription(new RTCSessionDescription(answer));
 
@@ -459,6 +557,7 @@ export const useGroupCall = ({
         };
 
         const handleIceCandidate = async ({ senderId, candidate }: any) => {
+            if (!calling) return;
             const pc = peerConnections.current.get(senderId);
             if (pc && pc.remoteDescription) {
                 try {
@@ -475,6 +574,7 @@ export const useGroupCall = ({
         };
 
         const handleUserLeft = ({ userId }: any) => {
+            if (!calling) return;
             setParticipants(prev => prev.filter(p => p._id !== userId));
             setRemoteStreams(prev => {
                 const newMap = new Map(prev);
@@ -485,37 +585,107 @@ export const useGroupCall = ({
         };
 
         const handleRemoteMic = ({ userId, isMuted }: any) => {
+            if (!calling) return;
             setParticipants(prev => prev.map(p =>
                 p._id === userId ? { ...p, isMuted } : p
             ));
         };
 
         const handleRemoteCamera = ({ userId, isVideoOff }: any) => {
+            if (!calling) return;
             setParticipants(prev => prev.map(p =>
                 p._id === userId ? { ...p, isVideoOff } : p
             ));
         };
 
-        socket.on("incoming-call", handleIncomingCall);
-        socket.on("user-joined", handleUserJoined);
-        socket.on("webrtc-offer", handleOffer);
-        socket.on("webrtc-answer", handleAnswer);
-        socket.on("ice-candidate", handleIceCandidate);
-        socket.on("user-left", handleUserLeft);
-        socket.on("toggle-mic", handleRemoteMic);
-        socket.on("toggle-camera", handleRemoteCamera);
+        const handleReconnect = () => {
+            if (calling && activeConversationId.current) {
+                console.log("[socket] Reconnected. Rejoining group call room...");
+                socket.emit("join-group-call", {
+                    conversationId: activeConversationId.current,
+                    user: currentUser,
+                });
+            }
+        };
+
+        const handleBusyUsersUpdate = (busyList: string[]) => {
+            setBusyUsers(busyList);
+        };
+
+        const handleUserBusy = ({ targetUserIds }: any) => {
+            let names = "";
+            if (targetUserIds && Array.isArray(targetUserIds)) {
+                names = groupMembers
+                    .filter(m => targetUserIds.includes(m._id))
+                    .map(m => m.name)
+                    .join(", ");
+            }
+            // Show red toast at top center
+            const toast = document.createElement("div");
+            toast.innerText = names ? `${names} is currently busy` : "Some members are currently busy";
+            toast.style.cssText = [
+                "position:fixed",
+                "top:24px",
+                "left:50%",
+                "transform:translateX(-50%)",
+                "background:#dc2626",
+                "color:#fff",
+                "padding:12px 28px",
+                "border-radius:12px",
+                "font-weight:600",
+                "font-size:14px",
+                "z-index:99999",
+                "box-shadow:0 4px 20px rgba(0,0,0,0.5)",
+                "letter-spacing:0.01em",
+                "pointer-events:none",
+                "animation:fadeInDown 0.25s ease",
+            ].join(";");
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        };
+
+        const handleCancelGroupCall = ({ conversationId }: any) => {
+            setIncomingCall(prev => {
+                if (prev && prev.conversationId === conversationId) return null;
+                return prev;
+            });
+        };
+
+        socket.emit("get-busy-users");
+
+        socket.on("connect", handleReconnect);
+        socket.on("busy-users-update", handleBusyUsersUpdate);
+        socket.on("user-busy", handleUserBusy);
+        socket.on("group-incoming-call", handleIncomingCall);
+        socket.on("group-call-cancelled", handleCancelGroupCall);
+        socket.on("group-user-joined", handleUserJoined);
+        socket.on("group-webrtc-offer", handleOffer);
+        socket.on("group-webrtc-answer", handleAnswer);
+        socket.on("group-ice-candidate", handleIceCandidate);
+        socket.on("group-user-left", handleUserLeft);
+        socket.on("group-user-toggle-mic", handleRemoteMic);
+        socket.on("group-user-toggle-camera", handleRemoteCamera);
 
         return () => {
-            socket.off("incoming-call", handleIncomingCall);
-            socket.off("user-joined", handleUserJoined);
-            socket.off("webrtc-offer", handleOffer);
-            socket.off("webrtc-answer", handleAnswer);
-            socket.off("ice-candidate", handleIceCandidate);
-            socket.off("user-left", handleUserLeft);
-            socket.off("toggle-mic", handleRemoteMic);
-            socket.off("toggle-camera", handleRemoteCamera);
+            socket.off("connect", handleReconnect);
+            socket.off("busy-users-update", handleBusyUsersUpdate);
+            socket.off("user-busy", handleUserBusy);
+            socket.off("group-incoming-call", handleIncomingCall);
+            socket.off("group-user-joined", handleUserJoined);
+            socket.off("group-webrtc-offer", handleOffer);
+            socket.off("group-webrtc-answer", handleAnswer);
+            socket.off("group-ice-candidate", handleIceCandidate);
+            socket.off("group-user-left", handleUserLeft);
+            socket.off("group-user-toggle-mic", handleRemoteMic);
+            socket.off("group-user-toggle-camera", handleRemoteCamera);
+            socket.off("group-call-cancelled", handleCancelGroupCall);
         };
-    }, [socket, currentUser, calling, cleanupPeer]);
+    }, [socket, currentUser, calling, cleanupPeer, cleanupCall]);
+
+    // Ensure all peers are cleaned up on full unmount
+    useEffect(() => {
+        return () => cleanupAllPeers();
+    }, [cleanupAllPeers]);
 
     return {
         calling,
@@ -527,10 +697,12 @@ export const useGroupCall = ({
         participants,
         micEnabled,
         cameraEnabled,
+        busyUsers,
         startGroupCall,
         acceptGroupCall,
         rejectGroupCall,
         endGroupCall,
+        inviteGroupUser,
         toggleLocalMic,
         toggleLocalCamera,
     };

@@ -26,6 +26,7 @@ interface GroupCallDialogProps {
         avatar?: string;
     } | null;
     friends: any[];
+    busyUsers: string[];
     onInviteUser: (targetUserId: string, targetUser: any) => void;
     onLeave: () => void;
     onToggleMic: () => void;
@@ -115,9 +116,10 @@ const AudioPulseAvatar = ({
         };
     }, [stream, isMuted]);
 
-    const dimensionClass = size === "large" ? "h-28 w-28" : "h-14 w-14";
-    const ring1Class = size === "large" ? "inset-[-12px]" : "inset-[-6px]";
-    const ring2Class = size === "large" ? "inset-[-24px]" : "inset-[-12px]";
+    const dimensionClass = size === "large" ? "h-40 w-40 md:h-52 md:w-52" : "h-14 w-14";
+    const ring1Class = size === "large" ? "inset-[-12px] md:inset-[-16px]" : "inset-[-6px]";
+    const ring2Class = size === "large" ? "inset-[-24px] md:inset-[-32px]" : "inset-[-12px]";
+    const textClass = size === "large" ? "text-5xl md:text-7xl" : "text-lg";
 
     return (
         <div className="relative flex items-center justify-center shrink-0">
@@ -134,7 +136,7 @@ const AudioPulseAvatar = ({
 
             <Avatar className={`${dimensionClass} border-2 border-zinc-700 shadow-xl relative z-10`}>
                 <AvatarImage src={avatar} />
-                <AvatarFallback className="bg-zinc-800 text-zinc-300 font-bold text-lg">
+                <AvatarFallback className={`bg-zinc-800 text-zinc-300 font-bold ${textClass}`}>
                     {fallbackName.charAt(0).toUpperCase()}
                 </AvatarFallback>
             </Avatar>
@@ -152,6 +154,7 @@ export default function GroupCallDialog({
     cameraEnabled,
     currentUser,
     friends,
+    busyUsers,
     onInviteUser,
     onLeave,
     onToggleMic,
@@ -164,7 +167,8 @@ export default function GroupCallDialog({
 
     if (!open) return null;
 
-    const activeFocusId = focusedParticipantId || currentUser?._id || "";
+    const firstRemoteParticipant = participants.find((p) => p._id !== currentUser?._id);
+    const activeFocusId = focusedParticipantId || firstRemoteParticipant?._id || currentUser?._id || "";
     const isFocusedSelf = activeFocusId === currentUser?._id;
     const focusedParticipant = participants.find((p) => p._id === activeFocusId);
     const focusedStream = isFocusedSelf ? localStream : (remoteStreams.get(activeFocusId) ?? null);
@@ -198,7 +202,7 @@ export default function GroupCallDialog({
                 <div className="flex-1 flex items-center justify-center p-4 relative min-h-0 bg-zinc-950">
                     <div className="w-full h-full max-w-5xl max-h-[85%] aspect-video rounded-3xl border border-zinc-850 bg-zinc-900/40 backdrop-blur-sm overflow-hidden relative shadow-2xl flex flex-col items-center justify-center">
                         {isFocusedVideoActive ? (
-                            <VideoStreamPlayer stream={focusedStream} muted={isFocusedSelf} />
+                            <VideoStreamPlayer stream={focusedStream} muted={true} />
                         ) : (
                             <>
                                 <div className="absolute inset-0 bg-zinc-950/20 backdrop-blur-md flex flex-col items-center justify-center gap-6">
@@ -246,7 +250,7 @@ export default function GroupCallDialog({
                                 }`}
                             >
                                 {isVideoActive ? (
-                                    <VideoStreamPlayer stream={stream} muted={isSelf} />
+                                    <VideoStreamPlayer stream={stream} muted={true} />
                                 ) : (
                                     <div className="relative flex flex-col items-center gap-1.5 z-10 scale-90">
                                         <AudioPulseAvatar
@@ -395,6 +399,10 @@ export default function GroupCallDialog({
                                                 <span className="text-[10px] bg-zinc-800 text-zinc-400 px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
                                                     <Check className="h-3 w-3 text-zinc-500" />
                                                     <span>Active</span>
+                                                </span>
+                                            ) : busyUsers.includes(f._id) ? (
+                                                <span className="text-[10px] bg-red-700/80 text-white px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
+                                                    <span>Busy</span>
                                                 </span>
                                             ) : (
                                                 <Button
