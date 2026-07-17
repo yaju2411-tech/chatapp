@@ -724,9 +724,17 @@ export const useOneToOneCall = ({
         };
     }, [socket, currentUser, calling, cleanupCall, cleanupPeer]);
 
+    const cleanupCallRef = useRef(cleanupCall);
+    useEffect(() => {
+        cleanupCallRef.current = cleanupCall;
+    }, [cleanupCall]);
+
     // Ensure all peers are cleaned up on full unmount
     useEffect(() => {
-        return () => cleanupAllPeers();
+        return () => {
+            if (cleanupCallRef.current) cleanupCallRef.current();
+            cleanupAllPeers();
+        };
     }, [cleanupAllPeers]);
 
     return {
