@@ -30,7 +30,7 @@ export const sendOfflineCallEmail = async ({ targetId, caller, conversationId })
                     </div>
                 `
             });
-            console.log(`Offline call notification email sent to ${recipient.email}`);
+            console.log("Offline call notification email sent successfully.");
             return true;
         }
     } catch (err) {
