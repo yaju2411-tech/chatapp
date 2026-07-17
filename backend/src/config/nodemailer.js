@@ -9,10 +9,15 @@ const lookupIPv4 = (hostname, options, callback) => {
     return dns.lookup(hostname, { ...options, family: 4 }, callback);
 };
 
+const smtpPort = parseInt(process.env.SMTP_PORT || "465");
+const isSecure = process.env.SMTP_SECURE 
+    ? process.env.SMTP_SECURE === "true" 
+    : smtpPort === 465;
+
 export const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || "smtp.gmail.com",
-    port: parseInt(process.env.SMTP_PORT || "465"),
-    secure: process.env.SMTP_PORT === "465",
+    port: smtpPort,
+    secure: isSecure,
     auth: {
         user: process.env.SMTP_USER || process.env.EMAIL_USER,
         pass: process.env.SMTP_PASS || process.env.EMAIL_PASSWORD,
