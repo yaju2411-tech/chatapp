@@ -645,7 +645,7 @@ export const useGroupCall = ({
         };
 
         const handleCancelGroupCall = ({ conversationId }: any) => {
-            setIncomingCall(prev => {
+            setIncomingCall((prev: any) => {
                 if (prev && prev.conversationId === conversationId) return null;
                 return prev;
             });
