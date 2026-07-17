@@ -53,6 +53,7 @@ export default function GroupIncomingCall({
                     {/* Reject Button */}
                     <Button
                         onClick={onReject}
+                        aria-label="Reject group call"
                         className="h-14 w-14 rounded-full bg-red-600 hover:bg-red-750 text-white flex items-center justify-center p-0 shadow-lg shadow-red-655/30 transition-all hover:scale-105"
                     >
                         <PhoneOff className="h-6 w-6" />
@@ -61,6 +62,7 @@ export default function GroupIncomingCall({
                     {/* Accept Button */}
                     <Button
                         onClick={onAccept}
+                        aria-label="Accept group call"
                         className="h-14 w-14 rounded-full bg-green-600 hover:bg-green-750 text-white flex items-center justify-center p-0 shadow-lg shadow-green-655/30 transition-all hover:scale-105"
                     >
                         {callType === "video" ? <Video className="h-6 w-6" /> : <Phone className="h-6 w-6" />}
