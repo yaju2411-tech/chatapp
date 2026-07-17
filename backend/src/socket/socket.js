@@ -70,9 +70,9 @@ export const setupSocket = () => {
             const actualUserId = socket.userId;
             if (!actualUserId) return;
             const conversation = await Conversation.findById(conversationId);
-            if (!conversation || !conversation.participants.includes(actualUserId)) return;
+            if (!conversation || !conversation?.participants?.includes(actualUserId)) return;
             
-            const validTargets = targetUserIds.filter(id => conversation.participants.includes(id));
+            const validTargets = targetUserIds.filter(id => conversation?.participants?.includes(id));
             
             // Check if any target is busy before doing anything
             if (validTargets.some(id => usersInCall.has(id) || ringingUsers.has(id))) {
@@ -181,9 +181,9 @@ export const setupSocket = () => {
             const actualUserId = socket.userId;
             if (!actualUserId) return;
             const conversation = await Conversation.findById(conversationId);
-            if (!conversation || !conversation.participants.includes(actualUserId)) return;
+            if (!conversation || !conversation?.participants?.includes(actualUserId)) return;
             
-            const validTargets = targetUserIds.filter(id => conversation.participants.includes(id));
+            const validTargets = targetUserIds.filter(id => conversation?.participants?.includes(id));
             
             ringingUsers.add(actualUserId);
             usersInCall.add(actualUserId);
@@ -226,8 +226,8 @@ export const setupSocket = () => {
             const actualUserId = socket.userId;
             if (!actualUserId) return;
             const conversation = await Conversation.findById(conversationId);
-            if (!conversation || !conversation.participants.includes(actualUserId)) return;
-            if (!conversation.participants.includes(targetUserId)) return;
+            if (!conversation || !conversation?.participants?.includes(actualUserId)) return;
+            if (!conversation?.participants?.includes(targetUserId)) return;
 
             if (usersInCall.has(targetUserId) || ringingUsers.has(targetUserId)) {
                 socket.emit("user-busy", { targetUserIds: [targetUserId], conversationId, callType: "group" });
